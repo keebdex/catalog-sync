@@ -10,66 +10,94 @@ const supabase = createClient(
     process.env.SUPABASE_KEY,
 )
 
+// Check for dry-run flag from command line arguments
+const isDryRun = process.argv.includes('--dry-run')
+
 const makeKeysetImageId = (k) => `keyset/${k.profile_keyset_id}`
 const makeKeysetKitImageId = (k) =>
     `keyset/${k.profile_keyset_id}/kit/${k.id}/${k.kit_id || urlSlugify(k.name)}`
 const makeKeyboardImageId = (k) =>
     `keyboard/${k.brand_keyboard_slug}/${k.release_id}/${urlSlugify(k.variant_name)}`
 
-const getKeysets = async (rows = []) => {
-    const { data } = await supabase
-        .from('keysets')
-        .select('img, profile_keyset_id')
-        .not('img', 'is', null)
-        .neq('img', '')
+// Rows still in review keep their vendor/submitter URL: reviewers see the
+// original image, and rejected rows never leave an upload behind. They get
+// synced on the first run after approval.
+const OFFICIAL = 'review_status.is.null,review_status.eq.Approved'
+
+// Pages through a query (PostgREST caps responses at 1000 rows) and throws
+// on any error, so a failed read never looks like "nothing to sync".
+const fetchAll = async (buildQuery, rows = []) => {
+    const { data, error } = await buildQuery()
         .order('id')
         .range(rows.length, rows.length + 999)
+
+    if (error) {
+        throw error
+    }
 
     rows = rows.concat(data)
 
     if (data.length === 1000) {
-        return getKeysets(rows)
+        return fetchAll(buildQuery, rows)
     }
 
     return rows
 }
 
-const getKeysetKits = async (rows = []) => {
-    const { data } = await supabase
-        .from('keyset_kits')
-        .select('*')
-        .not('img', 'is', null)
-        .neq('img', '')
-        .order('id')
-        .range(rows.length, rows.length + 999)
+const getOfficialKeys = async (table, column) => {
+    const rows = await fetchAll(() =>
+        supabase.from(table).select(`id, ${column}`).or(OFFICIAL),
+    )
 
-    rows = rows.concat(data)
-
-    if (data.length === 1000) {
-        return getKeysetKits(rows)
-    }
-
-    return rows
+    return new Set(rows.map((row) => row[column]))
 }
 
-const getKeyboardVariants = async (rows = []) => {
-    const { data } = await supabase
-        .from('keyboard_variants')
-        .select('*')
-        .not('img_front', 'is', null)
-        .neq('img_front', '')
-        .not('img_back', 'is', null)
-        .neq('img_back', '')
-        .order('id')
-        .range(rows.length, rows.length + 999)
+const getKeysets = () =>
+    fetchAll(() =>
+        supabase
+            .from('keysets')
+            .select('img, profile_keyset_id')
+            .or(OFFICIAL)
+            .not('img', 'is', null)
+            .neq('img', ''),
+    )
 
-    rows = rows.concat(data)
+// A kit counts as published only when its keyset is too (older scraped kits
+// have no status of their own under a Pending keyset).
+const getKeysetKits = async () => {
+    const [kits, keysets] = await Promise.all([
+        fetchAll(() =>
+            supabase
+                .from('keyset_kits')
+                .select('*')
+                .or(OFFICIAL)
+                .not('img', 'is', null)
+                .neq('img', ''),
+        ),
+        getOfficialKeys('keysets', 'profile_keyset_id'),
+    ])
 
-    if (data.length === 1000) {
-        return getKeyboardVariants(rows)
-    }
+    return kits.filter((kit) => keysets.has(kit.profile_keyset_id))
+}
 
-    return rows
+const getKeyboardVariants = async () => {
+    const [variants, keyboards] = await Promise.all([
+        fetchAll(() =>
+            supabase
+                .from('keyboard_variants')
+                .select('*')
+                .or(OFFICIAL)
+                .not('img_front', 'is', null)
+                .neq('img_front', '')
+                .not('img_back', 'is', null)
+                .neq('img_back', ''),
+        ),
+        getOfficialKeys('keyboards', 'brand_keyboard_slug'),
+    ])
+
+    return variants.filter((variant) =>
+        keyboards.has(variant.brand_keyboard_slug),
+    )
 }
 
 const syncNewKeyset = async (keyset) => {
@@ -172,6 +200,17 @@ Promise.all([getKeysets(), getKeysetKits(), getKeyboardVariants()])
         console.log('keyset kits to sync', unsyncedKits.length)
         console.log('keyboard variants to sync', unsyncedVariants.length)
 
+        if (isDryRun) {
+            console.log(
+                '[DRY RUN] Would upload',
+                unsyncedKeysets.map(makeKeysetImageId),
+                unsyncedKits.map(makeKeysetKitImageId),
+                unsyncedVariants.map(makeKeyboardImageId),
+            )
+
+            return
+        }
+
         if (unsyncedKeysets.length) {
             await Promise.map(unsyncedKeysets, syncNewKeyset, {
                 concurrency: 5,
@@ -190,4 +229,7 @@ Promise.all([getKeysets(), getKeysetKits(), getKeyboardVariants()])
             })
         }
     })
-    .catch(console.error)
+    .catch((error) => {
+        console.error(error)
+        process.exitCode = 1
+    })
