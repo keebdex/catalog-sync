@@ -32,7 +32,7 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 
 Environment: `SUPABASE_URL`, `SUPABASE_KEY` (service role; RLS does not apply, so the scripts must set moderation fields itself), `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (written to `keebdex.json` in CI). `NODE_ENV=production` in CI; other values enable development-only output such as the `db/` dumps.
 
-CI (`.github/workflows/`): `artisan-sync` runs the gdocs importer then the maker scraper daily and on push to `main`; `image-sync` runs two hours later; `image-prune` twice a month. The vendor scraper is run manually.
+CI (`.github/workflows/`, all against production): `artisan-sync` runs the gdocs importer then the maker scraper daily at 23:00 UTC and on pushes to `main` that touch `artisans/`, `utils/`, the package files, or the workflow itself; `image-sync` runs daily at 01:00 UTC; `image-prune` on the 1st and 15th. Each can be started by hand (always a real run), has a concurrency group so runs never overlap, and a timeout. Scripts must exit non-zero on failure (`process.exitCode = 1` in the final catch), or a crashed run shows as a success. The vendor scraper has no workflow and is run manually.
 
 ## Working agreements
 
