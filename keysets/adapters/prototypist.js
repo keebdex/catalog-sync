@@ -116,7 +116,6 @@ async function fetchKeysets() {
                     status: mapStatus(p.tags),
                     // render_img: p.images[0]?.src ?? null,
                     img: p.images[0]?.src ?? null,
-                    review_status: 'Pending',
                     ...groupBuy,
                 },
                 kits,

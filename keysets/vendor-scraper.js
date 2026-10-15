@@ -9,6 +9,18 @@ const supabase = createClient(
     process.env.SUPABASE_KEY,
 )
 
+// Scraped keysets and their kits go through Keebdex's review queue: every kit
+// carries its own status, and approving one also approves its keyset. A null
+// status would mean "added by staff" and skip review (kits) or hide the keyset
+// from the queue for good (a Pending keyset whose kits have no status).
+// submitted_by stays null: no user owns them, so no notifications are sent.
+const PENDING_REVIEW = {
+    review_status: 'Pending',
+    submitted_by: null,
+    verified_at: null,
+    verified_by: null,
+}
+
 // Load adapters with priority order
 async function loadAdapters() {
     const priorityMap = {
@@ -71,9 +83,16 @@ const syncKeysets = async () => {
             continue
         }
 
+        // Keebdex's review queue lists kits grouped by keyset, so a keyset
+        // without kits could never be reviewed.
+        if (kits.length === 0) {
+            console.log(`⏭️ ${keyset.name} has no kits. Skipping.`)
+            continue
+        }
+
         const { error: keysetError } = await supabase
             .from('keysets')
-            .insert([keyset])
+            .insert([{ ...keyset, ...PENDING_REVIEW }])
         if (keysetError) {
             console.error(
                 `‼️ Error inserting keyset: ${keyset.name}`,
@@ -82,20 +101,22 @@ const syncKeysets = async () => {
             continue
         }
 
-        if (kits.length > 0) {
-            const { error: kitError } = await supabase
-                .from('keyset_kits')
-                .insert(kits)
-            if (kitError) {
-                console.error(
-                    `‼️ Error inserting kits for ${keyset.profile_keyset_id}`,
-                    kitError.message,
-                )
-            } else {
-                console.log(
-                    `✅ Inserted ${kits.length} kits for ${keyset.name}`,
-                )
-            }
+        const { error: kitError } = await supabase
+            .from('keyset_kits')
+            .insert(kits.map((kit) => ({ ...kit, ...PENDING_REVIEW })))
+        if (kitError) {
+            console.error(
+                `‼️ Error inserting kits for ${keyset.profile_keyset_id}`,
+                kitError.message,
+            )
+
+            // Don't leave a Pending keyset that nothing in the queue points to
+            await supabase
+                .from('keysets')
+                .delete()
+                .eq('profile_keyset_id', keyset.profile_keyset_id)
+        } else {
+            console.log(`✅ Inserted ${kits.length} kits for ${keyset.name}`)
         }
     }
 
