@@ -9,6 +9,9 @@ const supabase = createClient(
     process.env.SUPABASE_KEY,
 )
 
+// Check for dry-run flag from command line arguments
+const isDryRun = process.argv.includes('--dry-run')
+
 // Scraped keysets and their kits go through Keebdex's review queue: every kit
 // carries its own status, and approving one also approves its keyset. A null
 // status would mean "added by staff" and skip review (kits) or hide the keyset
@@ -45,6 +48,10 @@ async function loadAdapters() {
 
 const syncKeysets = async () => {
     console.log('🚀 Starting Keyset Sync Script')
+
+    if (isDryRun) {
+        console.log('🧪 Dry run: nothing will be written to the database')
+    }
 
     const adapters = await loadAdapters()
     const allKeysets = new Map() // key: profile_keyset_id, value: { keyset, kits }
@@ -90,6 +97,20 @@ const syncKeysets = async () => {
             continue
         }
 
+        const kitRows = kits.map((kit) => ({ ...kit, ...PENDING_REVIEW }))
+
+        if (isDryRun) {
+            console.log(`[DRY RUN] Would insert keyset ${keyset.name}`, {
+                ...keyset,
+                ...PENDING_REVIEW,
+            })
+            console.log(
+                `[DRY RUN] Would insert ${kitRows.length} kits for ${keyset.name}`,
+                kitRows,
+            )
+            continue
+        }
+
         const { error: keysetError } = await supabase
             .from('keysets')
             .insert([{ ...keyset, ...PENDING_REVIEW }])
@@ -103,7 +124,7 @@ const syncKeysets = async () => {
 
         const { error: kitError } = await supabase
             .from('keyset_kits')
-            .insert(kits.map((kit) => ({ ...kit, ...PENDING_REVIEW })))
+            .insert(kitRows)
         if (kitError) {
             console.error(
                 `‼️ Error inserting kits for ${keyset.profile_keyset_id}`,
@@ -120,7 +141,9 @@ const syncKeysets = async () => {
         }
     }
 
-    console.log('\n🎉 All vendors synced!')
+    console.log(
+        isDryRun ? '\n🎉 Dry run finished!' : '\n🎉 All vendors synced!',
+    )
 }
 
 syncKeysets()
