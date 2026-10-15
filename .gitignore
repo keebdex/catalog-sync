@@ -218,6 +218,7 @@ $RECYCLE.BIN/
 # AI / Agent local working files
 .ai/
 .ai-*.md
+CLAUDE.local.md
 
 # Local, generated, environment-specific, temporary and sensitive files
 db/

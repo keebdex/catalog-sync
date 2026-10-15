@@ -8,13 +8,14 @@ Collects, normalizes, and syncs artisan, keyset, and image data from Google Docs
 - `keysets/` — vendor keyset scraper (`vendor-scraper.js`) with per-vendor adapters in `adapters/`.
 - `jobs/` — one-off/maintenance scripts (image pruning/syncing, maker id changes, catalogue metadata sync).
 - `utils/` — shared constants (table names, Cloudflare image delivery URL) and Cloudflare Images helpers.
-- `supabase/migrations/` — SQL schema migrations for the Supabase database.
 - `db/` — local JSON dumps written per maker in development for debugging parsed data.
 - `.github/workflows/` — scheduled CI jobs that run the importer/scraper/image jobs against production.
 
 ## Data ownership model
 
-Artisan colorway rows are either `source: 'gdoc'` (owned by this pipeline) or `source: 'dashboard'` (owned by manual dashboard edits). Dashboard-owned rows are never touched by the sync. Gdoc-owned rows are only ever patched on a small allow-list of fields (see `GDOC_SYNCABLE_FIELDS` / `GDOC_SCULPT_SYNCABLE_FIELDS` in `artisans/utils/database.js`); a per-row `overridden_fields` array lets the dashboard lock individual fields from being overwritten by future syncs.
+Artisan colorway rows are either `source: 'gdoc'` (owned by the Google Docs importer), `source: 'scraper'` (owned by the maker scrapers), or `source: 'keebdex'` (added in the Keebdex app). Each sync only reads and writes rows of its own source. Pipeline-owned rows are only ever patched on a small allow-list of fields (see `GDOC_SYNCABLE_FIELDS` / `GDOC_SCULPT_SYNCABLE_FIELDS` in `artisans/utils/database.js`); a per-row `overridden_fields` array lets the Keebdex app lock individual fields from being overwritten by future syncs.
+
+Schema migrations live in the Keebdex Supabase repository (`keebdex/supabase`), not here. Agent instructions are in [AGENTS.md](AGENTS.md).
 
 ## Scripts
 
