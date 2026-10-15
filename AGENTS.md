@@ -17,7 +17,7 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 - `artisans/utils/parser.js`: turns the raw Google Docs API response into sculpt/colorway objects.
 - `keysets/vendor-scraper.js` + `keysets/adapters/*.js`: vendor keyset scraper. Each adapter exports `{ name, fetchKeysets }` returning `{ keyset, kits }[]`; adapters earlier in `priorityMap` win when two return the same `profile_keyset_id`.
 - `keysets/utils/index.js`: `getProfileInfo` (vendor title → Keebdex `keyset_profiles.id` and cleaned keyset name) and `removeHtmlTags`.
-- `jobs/`: maintenance scripts. `sync-images.js` / `prune-images.js` (scheduled), `sync-catalogue-metadata.js`, and the manual `change-maker-id.js <old> <new>` and `delete-maker.js <ids...>`. None of them support `--dry-run`; they write to production when run.
+- `jobs/`: maintenance scripts. `sync-images.js` / `prune-images.js` (scheduled, both support `--dry-run`; see "Cloudflare Images"), `sync-catalogue-metadata.js`, and the manual `change-maker-id.js <old> <new>` and `delete-maker.js <ids...>`. The last three have no `--dry-run` and write to production when run.
 - `utils/index.js`: shared table names (`ARTISAN_MAKERS_TABLE`, …), `urlSlugify`, `DELIVERY_BASE_URL`, `PARTIAL_MAKERS`. Import table names from here instead of hardcoding strings.
 - `utils/image.js`: Cloudflare Images helpers.
 - `types/database.types.ts`: Supabase types copied from the Keebdex app. Generated; never edit by hand.
@@ -26,7 +26,7 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 ## Commands
 
 - `npm run gdocs-importer`, `npm run maker-scraper`, `npm run vendor-scraper`: append `-- --dry-run` to log intended writes instead of making them.
-- `npm run sync-images`, `npm run prune-images`.
+- `npm run sync-images`, `npm run prune-images`: also take `-- --dry-run`.
 - `npm run lint` / `npx eslint <files>`, `npm run format`.
 - There is no test suite. `.vscode/launch.json` has dry-run launch configs for the three sync scripts.
 
@@ -37,7 +37,7 @@ CI (`.github/workflows/`): `artisan-sync` runs the gdocs importer then the maker
 ## Working agreements
 
 - **Verify before finishing.** Run `npx eslint <changed files>`. For sync-logic changes, run the job with `--dry-run` and read the `[DRY RUN]` output, or reproduce the scenario in a throwaway script.
-- **Never test against the real database.** Don't run an import or scraper without `--dry-run`, or any `jobs/` script, just to check a change. Read-only queries are fine.
+- **Never test against the real database.** Don't run an import, scraper, or image job without `--dry-run`, or any other `jobs/` script, just to check a change. Read-only queries are fine.
 - **Schema changes ship with a migration** in the Keebdex Supabase repository (`../keebdex/supabase/migrations/`, its own Git repo with its own `AGENTS.md`), not here. If code writes a new column, draft the migration in the same change and call it out in your summary. Insert and update errors are only logged, so a missing column drops data silently.
 - **Stay inside the allow-lists.** Don't widen `GDOC_SYNCABLE_FIELDS`, `GDOC_SCULPT_SYNCABLE_FIELDS`, or the `*_ALWAYS_SYNCED_FIELDS` lists without saying why.
 - **Commits** follow Conventional Commits (`type(scope): summary`, enforced by commitlint) with a body explaining why. Husky runs Prettier and `eslint --fix` on staged files. Don't commit unless asked.
@@ -83,9 +83,16 @@ A maker can have several docs (`document_ids`), and one sculpt's colorways can s
 
 `insertRows` chunks at `INSERT_CHUNK_SIZE` and `deleteRows` chunks `.in()` at `IN_CHUNK_SIZE`, both needed once a maker has more rows than fit in one PostgREST request. `updateRows` groups `[id, values]` pairs by identical payload (`payloadKey`) and issues one `.update(values).in('id', ids)` per distinct payload; rows with no real change are dropped first, so a no-op sync costs zero requests. Rows that changed differently still cost one request each, since there is no bulk partial-column upsert that respects `overridden_fields`. Always build the `[id, values]` list and call `updateRows` once; don't `Promise.map` over single-row updates.
 
+## Cloudflare Images
+
+Image columns: `artisan_colorways.img`, `keysets.img`, `keyset_kits.img`, `keyboard_variants.img_front` / `img_back`. A synced image is stored as `${DELIVERY_BASE_URL}/<id>/public` (ids may contain slashes); anything else is an external URL. The Keebdex app shows external URLs as they are, and its upload endpoint stores community and staff uploads on Cloudflare with random UUID ids.
+
+- `sync-images.js` uploads external keyset, kit, and keyboard variant images under readable ids (`keyset/<profile_keyset_id>/kit/<id>/<kit>`, …) and rewrites the row. It only syncs published rows: the row's own `review_status` is null or `Approved`, and so is its keyset or keyboard. Rows in review keep their original URL so reviewers see the source image and rejected rows leave no upload behind; they sync on the first run after approval. A 404 from the source clears the row's image. Artisan images are uploaded by the importer and scraper themselves.
+- `prune-images.js` deletes Cloudflare images no row references, counting rows of every review status, and skips images uploaded in the last 7 days (an app upload isn't referenced until its form is saved). Every read must succeed and at least one image must be referenced, or it deletes nothing. Add a column to `IMAGE_COLUMNS` whenever a new table stores Cloudflare images, or its images get pruned.
+
 ## Dry-run convention
 
-Entry scripts detect `--dry-run` in `process.argv`. The artisan scripts call `setDryRun(true)`, and every write helper in `database.js` (`insertRows`, `updateRows`, `deleteRows`, `updateMetadata`) then logs `[DRY RUN] Would ...` with the payload instead of calling Supabase. Scripts also skip side effects they own directly (image uploads in `gdocs-importer.js`). `vendor-scraper.js` writes inline, so it checks `isDryRun` itself and logs the keyset and kit rows it would insert. Reads still hit the real database in a dry run.
+Entry scripts detect `--dry-run` in `process.argv`. The artisan scripts call `setDryRun(true)`, and every write helper in `database.js` (`insertRows`, `updateRows`, `deleteRows`, `updateMetadata`) then logs `[DRY RUN] Would ...` with the payload instead of calling Supabase. Scripts also skip side effects they own directly (image uploads in `gdocs-importer.js`). `vendor-scraper.js`, `sync-images.js`, and `prune-images.js` write inline, so they check `isDryRun` themselves and log the rows, uploads, or deletions they would make. Reads still hit the real database in a dry run.
 
 ## Code conventions
 

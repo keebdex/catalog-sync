@@ -59,7 +59,8 @@ async function uploadImage(filename, url, promise) {
         })
 }
 
-async function getListImages(images = [], token) {
+// Every image on the account as { id, uploaded }
+async function listImages(images = [], token) {
     const config = {
         method: 'get',
         url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CF_IMAGES_ACCOUNT_ID}/images/v2`,
@@ -73,16 +74,22 @@ async function getListImages(images = [], token) {
     }
 
     return axios(config).then(({ data: { result } }) => {
-        const ids = result.images.map((i) => i.id)
-
-        images = images.concat(ids)
+        images = images.concat(
+            result.images.map(({ id, uploaded }) => ({ id, uploaded })),
+        )
 
         if (result.continuation_token) {
-            return getListImages(images, result.continuation_token)
+            return listImages(images, result.continuation_token)
         }
 
         return images
     })
+}
+
+async function getListImages() {
+    const images = await listImages()
+
+    return images.map((image) => image.id)
 }
 
 async function deleteImage(imageId) {
@@ -99,4 +106,10 @@ async function deleteImage(imageId) {
     })
 }
 
-module.exports = { downloadImage, uploadImage, getListImages, deleteImage }
+module.exports = {
+    downloadImage,
+    uploadImage,
+    listImages,
+    getListImages,
+    deleteImage,
+}

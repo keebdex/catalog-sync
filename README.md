@@ -29,7 +29,7 @@ npm run lint / lint:fix  # eslint
 npm run format           # prettier
 ```
 
-Pass `--dry-run` to the importer/scraper scripts to log intended database changes and skip image uploads without writing anything.
+Pass `--dry-run` to the importer, scraper, and image scripts to log intended database changes and skip image uploads without writing anything.
 
 ## Environment variables
 
