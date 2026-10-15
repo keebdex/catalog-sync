@@ -10,10 +10,105 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
+      announcement_dismissals: {
+        Row: {
+          announcement_key: string
+          dismissed_at: string
+          user_id: string
+        }
+        Insert: {
+          announcement_key: string
+          dismissed_at?: string
+          user_id?: string
+        }
+        Update: {
+          announcement_key?: string
+          dismissed_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_dismissals_announcement_key_fkey"
+            columns: ["announcement_key"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "announcement_dismissals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          audience: string
+          color: string
+          created_at: string
+          created_by: string | null
+          cta_label: string | null
+          cta_url: string | null
+          description: string | null
+          display: string
+          ends_at: string | null
+          icon: string | null
+          key: string
+          priority: number
+          starts_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          cta_label?: string | null
+          cta_url?: string | null
+          description?: string | null
+          display?: string
+          ends_at?: string | null
+          icon?: string | null
+          key: string
+          priority?: number
+          starts_at?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          cta_label?: string | null
+          cta_url?: string | null
+          description?: string | null
+          display?: string
+          ends_at?: string | null
+          icon?: string | null
+          key?: string
+          priority?: number
+          starts_at?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       artisan_colorways: {
         Row: {
           colorway_id: string
@@ -33,11 +128,12 @@ export type Database = {
           price: number | null
           qty: number | null
           release: string | null
+          review_note: string | null
+          review_status: Database["public"]["Enums"]["review_status"] | null
           sale_type: Database["public"]["Enums"]["sale_format"] | null
           sculpt_id: string
           source: string | null
           source_document_id: string | null
-          status: Database["public"]["Enums"]["review_status"] | null
           stem: string[] | null
           submitted_by: string | null
           verified_at: string | null
@@ -61,11 +157,12 @@ export type Database = {
           price?: number | null
           qty?: number | null
           release?: string | null
+          review_note?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
           sale_type?: Database["public"]["Enums"]["sale_format"] | null
           sculpt_id: string
           source?: string | null
           source_document_id?: string | null
-          status?: Database["public"]["Enums"]["review_status"] | null
           stem?: string[] | null
           submitted_by?: string | null
           verified_at?: string | null
@@ -89,11 +186,12 @@ export type Database = {
           price?: number | null
           qty?: number | null
           release?: string | null
+          review_note?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
           sale_type?: Database["public"]["Enums"]["sale_format"] | null
           sculpt_id?: string
           source?: string | null
           source_document_id?: string | null
-          status?: Database["public"]["Enums"]["review_status"] | null
           stem?: string[] | null
           submitted_by?: string | null
           verified_at?: string | null
@@ -207,10 +305,14 @@ export type Database = {
           overridden_fields: string[]
           profile: string | null
           release: string | null
+          review_status: Database["public"]["Enums"]["review_status"] | null
           sculpt_id: string
           source: string
           source_document_id: string | null
           story: string | null
+          submitted_by: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           cast?: string | null
@@ -228,10 +330,14 @@ export type Database = {
           overridden_fields?: string[]
           profile?: string | null
           release?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
           sculpt_id: string
           source: string
           source_document_id?: string | null
           story?: string | null
+          submitted_by?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           cast?: string | null
@@ -249,10 +355,14 @@ export type Database = {
           overridden_fields?: string[]
           profile?: string | null
           release?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
           sculpt_id?: string
           source?: string
           source_document_id?: string | null
           story?: string | null
+          submitted_by?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
@@ -308,7 +418,11 @@ export type Database = {
           id: number
           message: string | null
           name: string | null
+          resolution_note: string | null
           resolved: boolean
+          resolved_at: string | null
+          resolved_by: string | null
+          submitted_by: string | null
         }
         Insert: {
           created_at?: string
@@ -316,7 +430,11 @@ export type Database = {
           id?: number
           message?: string | null
           name?: string | null
+          resolution_note?: string | null
           resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          submitted_by?: string | null
         }
         Update: {
           created_at?: string
@@ -324,9 +442,28 @@ export type Database = {
           id?: number
           message?: string | null
           name?: string | null
+          resolution_note?: string | null
           resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          submitted_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "feedbacks_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedbacks_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       keyboard_brands: {
         Row: {
@@ -388,7 +525,11 @@ export type Database = {
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
           release_year: number | null
+          review_status: Database["public"]["Enums"]["review_status"] | null
+          submitted_by: string | null
           variant_specs: boolean | null
+          verified_at: string | null
+          verified_by: string | null
           weight_materials:
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
@@ -410,7 +551,11 @@ export type Database = {
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
           release_year?: number | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
+          submitted_by?: string | null
           variant_specs?: boolean | null
+          verified_at?: string | null
+          verified_by?: string | null
           weight_materials?:
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
@@ -432,7 +577,11 @@ export type Database = {
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
           release_year?: number | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
+          submitted_by?: string | null
           variant_specs?: boolean | null
+          verified_at?: string | null
+          verified_by?: string | null
           weight_materials?:
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
@@ -451,6 +600,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "keyboard_brands"
             referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "keyboard_releases_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyboard_releases_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -476,9 +639,14 @@ export type Database = {
             | null
           release_id: number | null
           release_year: number | null
+          review_note: string | null
+          review_status: Database["public"]["Enums"]["review_status"] | null
           sale_type: Database["public"]["Enums"]["sale_format"] | null
+          submitted_by: string | null
           units_produced: number | null
           variant_name: string
+          verified_at: string | null
+          verified_by: string | null
           weight_materials:
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
@@ -504,9 +672,14 @@ export type Database = {
             | null
           release_id?: number | null
           release_year?: number | null
+          review_note?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
           sale_type?: Database["public"]["Enums"]["sale_format"] | null
+          submitted_by?: string | null
           units_produced?: number | null
           variant_name: string
+          verified_at?: string | null
+          verified_by?: string | null
           weight_materials?:
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
@@ -532,9 +705,14 @@ export type Database = {
             | null
           release_id?: number | null
           release_year?: number | null
+          review_note?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
           sale_type?: Database["public"]["Enums"]["sale_format"] | null
+          submitted_by?: string | null
           units_produced?: number | null
           variant_name?: string
+          verified_at?: string | null
+          verified_by?: string | null
           weight_materials?:
             | Database["public"]["Enums"]["keyboard_material"][]
             | null
@@ -559,6 +737,20 @@ export type Database = {
             columns: ["release_id"]
             isOneToOne: false
             referencedRelation: "keyboard_releases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyboard_variants_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyboard_variants_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -712,6 +904,11 @@ export type Database = {
           price: number | null
           profile_keyset_id: string
           qty: number | null
+          review_note: string | null
+          review_status: Database["public"]["Enums"]["review_status"] | null
+          submitted_by: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           cancelled?: boolean
@@ -724,6 +921,11 @@ export type Database = {
           price?: number | null
           profile_keyset_id: string
           qty?: number | null
+          review_note?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
+          submitted_by?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           cancelled?: boolean
@@ -736,6 +938,11 @@ export type Database = {
           price?: number | null
           profile_keyset_id?: string
           qty?: number | null
+          review_note?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"] | null
+          submitted_by?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
@@ -751,6 +958,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "keysets"
             referencedColumns: ["profile_keyset_id"]
+          },
+          {
+            foreignKeyName: "keyset_kits_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyset_kits_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -898,6 +1119,89 @@ export type Database = {
           sort_order?: number | null
         }
         Relationships: []
+      }
+      notification_preferences: {
+        Row: {
+          enabled: boolean
+          preference: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          preference: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          enabled?: boolean
+          preference?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          data: Json
+          entity_id: string | null
+          entity_type: string | null
+          group_key: string | null
+          id: string
+          read_at: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          data?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          group_key?: string | null
+          id?: string
+          read_at?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          data?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          group_key?: string | null
+          id?: string
+          read_at?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       testimonials: {
         Row: {
@@ -1056,6 +1360,7 @@ export type Database = {
       }
       users: {
         Row: {
+          appearance: Json
           assignments: string[] | null
           discord: string | null
           email: string
@@ -1067,6 +1372,7 @@ export type Database = {
           role: string | null
         }
         Insert: {
+          appearance?: Json
           assignments?: string[] | null
           discord?: string | null
           email: string
@@ -1078,6 +1384,7 @@ export type Database = {
           role?: string | null
         }
         Update: {
+          appearance?: Json
           assignments?: string[] | null
           discord?: string | null
           email?: string
@@ -1096,6 +1403,68 @@ export type Database = {
     }
     Functions: {
       can_manage: { Args: { scope: string }; Returns: boolean }
+      can_manage_any: { Args: never; Returns: boolean }
+      child_submission_can_modify: {
+        Args: {
+          child_status: Database["public"]["Enums"]["review_status"]
+          child_submitted_by: string
+          parent_rejected_ok?: boolean
+          parent_status: Database["public"]["Enums"]["review_status"]
+          parent_submitted_by: string
+          scope: string
+        }
+        Returns: boolean
+      }
+      child_submission_can_view: {
+        Args: {
+          child_status: Database["public"]["Enums"]["review_status"]
+          child_submitted_by: string
+          parent_status: Database["public"]["Enums"]["review_status"]
+          parent_submitted_by: string
+          scope: string
+        }
+        Returns: boolean
+      }
+      child_submission_write_is_valid: {
+        Args: {
+          child_status: Database["public"]["Enums"]["review_status"]
+          child_submitted_by: string
+          child_verified_at: string
+          child_verified_by: string
+          own_pending_parent_ok?: boolean
+          parent_rejected_ok?: boolean
+          parent_status: Database["public"]["Enums"]["review_status"]
+          parent_submitted_by: string
+          proposal_extra_ok?: boolean
+          scope: string
+        }
+        Returns: boolean
+      }
+      dismiss_announcement: { Args: { p_key: string }; Returns: undefined }
+      is_official_review_status: {
+        Args: { s: Database["public"]["Enums"]["review_status"] }
+        Returns: boolean
+      }
+      mark_all_notifications_read: { Args: never; Returns: number }
+      merge_dismissals: { Args: { p_keys: string[] }; Returns: number }
+      push_notification: {
+        Args: {
+          p_actor_id: string
+          p_data?: Json
+          p_entity_id: string
+          p_entity_type: string
+          p_group_key?: string
+          p_preference?: string
+          p_type: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      submission_details: {
+        Args: { p_row: Json; p_table: string }
+        Returns: Json
+      }
+      unread_count: { Args: never; Returns: number }
     }
     Enums: {
       currency:
@@ -1191,6 +1560,7 @@ export type Database = {
         | "Giveaway"
         | "Commission"
         | "Auction"
+        | "Friends & Family"
       user_role: "admin" | "editor" | "maker" | "designer" | "donator"
     }
     CompositeTypes: {
@@ -1420,6 +1790,7 @@ export const Constants = {
         "Giveaway",
         "Commission",
         "Auction",
+        "Friends & Family",
       ],
       user_role: ["admin", "editor", "maker", "designer", "donator"],
     },

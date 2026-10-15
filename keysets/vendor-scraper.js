@@ -77,8 +77,30 @@ const syncKeysets = async () => {
 
     console.log(`\n📊 Total unique keysets: ${allKeysets.size}`)
 
+    // keysets.profile_id references keyset_profiles, so a mapped profile that
+    // Keebdex doesn't have yet would fail the insert
+    const { data: profiles, error: profilesError } = await supabase
+        .from('keyset_profiles')
+        .select('id')
+    if (profilesError) {
+        console.error(
+            '‼️ Failed to load keyset profiles:',
+            profilesError.message,
+        )
+
+        return
+    }
+    const profileIds = new Set(profiles.map((p) => p.id))
+
     // Insert into Supabase
     for (const { keyset, kits } of allKeysets.values()) {
+        if (!profileIds.has(keyset.profile_id)) {
+            console.log(
+                `⏭️ ${keyset.name}: unknown profile "${keyset.profile_id}". Skipping.`,
+            )
+            continue
+        }
+
         const { data: existing } = await supabase
             .from('keysets')
             .select('profile_keyset_id')
