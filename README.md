@@ -1,4 +1,4 @@
-# Keebdex Data Pipeline
+# Keebdex Catalog Sync
 
 Collects, normalizes, and syncs artisan, keyset, and image data from Google Docs plus maker and vendor websites into the Keebdex Supabase database.
 

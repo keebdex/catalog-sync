@@ -1,4 +1,4 @@
-# Keebdex Data Pipeline Agent Instructions
+# Keebdex Catalog Sync Agent Instructions
 
 This is the canonical instruction file for every AI coding agent working in this repository (Claude Code, OpenAI Codex, Cursor, GitHub Copilot, and others). `CLAUDE.md` imports it and `.github/copilot-instructions.md` points here. Update this file instead of creating agent-specific copies; a tool-specific file only points here and holds what is specific to that tool.
 
@@ -6,7 +6,7 @@ This is the canonical instruction file for every AI coding agent working in this
 
 Node.js ETL scripts that pull artisan and keyset data from Google Docs and maker or vendor websites, normalize it, and write it into the Keebdex Supabase (Postgres) database, plus Cloudflare Images maintenance jobs. There is no web server and no build step: scripts run directly with `node` (see `package.json` scripts) or on a schedule from `.github/workflows/*.yml`.
 
-The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` describes the schema, the review (submission) workflow, and the server contract this pipeline must stay compatible with.
+The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` describes the schema, the review (submission) workflow, and the server contract these scripts must stay compatible with.
 
 ## Layout
 
@@ -30,7 +30,7 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 - `npm run lint` / `npx eslint <files>`, `npm run format`.
 - There is no test suite. `.vscode/launch.json` has dry-run launch configs for the three sync scripts.
 
-Environment: `SUPABASE_URL`, `SUPABASE_KEY` (service role; RLS does not apply, so the pipeline must set moderation fields itself), `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (written to `keebdex.json` in CI). `NODE_ENV=production` in CI; other values enable development-only output such as the `db/` dumps.
+Environment: `SUPABASE_URL`, `SUPABASE_KEY` (service role; RLS does not apply, so the scripts must set moderation fields itself), `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (written to `keebdex.json` in CI). `NODE_ENV=production` in CI; other values enable development-only output such as the `db/` dumps.
 
 CI (`.github/workflows/`): `artisan-sync` runs the gdocs importer then the maker scraper daily and on push to `main`; `image-sync` runs two hours later; `image-prune` twice a month. The vendor scraper is run manually.
 
@@ -44,13 +44,13 @@ CI (`.github/workflows/`): `artisan-sync` runs the gdocs importer then the maker
 
 ## Review status (Keebdex submission workflow)
 
-Keebdex tables that accept community submissions carry `review_status` (`Pending` / `Approved` / `Rejected`), `submitted_by`, `verified_at`, `verified_by`, and `review_note`. A `null` status means "added by staff": implicitly approved, public, and never shown in a review queue. Anything the pipeline inserts must fit that model, or reviewers can't see or act on it.
+Keebdex tables that accept community submissions carry `review_status` (`Pending` / `Approved` / `Rejected`), `submitted_by`, `verified_at`, `verified_by`, and `review_note`. A `null` status means "added by staff": implicitly approved, public, and never shown in a review queue. Anything these scripts insert must fit that model, or reviewers can't see or act on it.
 
 - **Artisans** (gdoc and scraper rows) are trusted maker data: sculpts and colorways are inserted with `review_status` null and published directly. Sync updates only patch allow-listed fields and never touch moderation columns.
 - **Keysets** from vendor sites need review: `vendor-scraper.js` inserts the keyset and every kit as `Pending` (`PENDING_REVIEW`: no submitter, no verifier). Kits must carry their own status, because the Keebdex keyset queue lists kits grouped by keyset; a Pending keyset with status-less kits never appears there. Approving a kit approves its keyset. Keysets without kits are skipped, and a keyset whose kit insert fails is deleted again, so no orphan Pending keyset is left.
 - Existing keysets (any status, including Rejected) are skipped, so a rejected keyset is not re-added. Only keysets whose `profile_id` exists in `keyset_profiles` are inserted.
 - `getProfileInfo` matches vendor prefixes as whole words, longest first (`GMK MTNU` → `mtnu` before `GMK` → `gmk`), and strips the prefix from the name. Map prefixes to real `keyset_profiles.id` values.
-- `submitted_by` stays null for pipeline rows, so Keebdex sends no notifications about them (`push_notification` skips a null recipient).
+- `submitted_by` stays null for synced rows, so Keebdex sends no notifications about them (`push_notification` skips a null recipient).
 
 ## Artisan data ownership (don't break this)
 

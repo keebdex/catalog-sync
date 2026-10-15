@@ -1,5 +1,5 @@
 {
-  "name": "keebdex-data-pipeline",
+  "name": "keebdex-catalog-sync",
   "version": "1.0.0",
   "description": "Collects, normalizes, and syncs artisan, keyset, keyboard, and image data from Google Docs and maker or vendor websites into Keebdex.",
   "main": "index.js",
@@ -17,14 +17,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/keebdex/data-pipeline.git"
+    "url": "git+https://github.com/keebdex/catalog-sync.git"
   },
   "author": "Anh Thang Bui <buianhthang89@gmail.com> (https://anhthang.org)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/keebdex/data-pipeline/issues"
+    "url": "https://github.com/keebdex/catalog-sync/issues"
   },
-  "homepage": "https://github.com/keebdex/data-pipeline#readme",
+  "homepage": "https://github.com/keebdex/catalog-sync#readme",
   "dependencies": {
     "@googleapis/docs": "^14.0.0",
     "@googleapis/drive": "^26.0.0",

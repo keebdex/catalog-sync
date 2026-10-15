@@ -1,4 +1,4 @@
-# Copilot instructions for keebdex/data-pipeline
+# Copilot instructions for keebdex/catalog-sync
 
 The shared instructions for every AI coding agent live in [AGENTS.md](../AGENTS.md) at the repository root. Read and follow them before making changes; they cover the data ownership model, review status rules, sync behaviour, and code conventions.
 

@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "keebdex-data-pipeline",
+      "name": "keebdex-catalog-sync",
       "dependencies": {
         "@googleapis/docs": "^14.0.0",
         "@googleapis/drive": "^26.0.0",
