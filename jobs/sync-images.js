@@ -3,7 +3,12 @@ require('dotenv').config()
 const { createClient } = require('@supabase/supabase-js')
 const Promise = require('bluebird')
 const { uploadImage } = require('../utils/image')
-const { urlSlugify, DELIVERY_BASE_URL } = require('../utils')
+const {
+    urlSlugify,
+    ARTISAN_COLORWAYS_TABLE,
+    ARTISAN_SCULPTS_TABLE,
+    DELIVERY_BASE_URL,
+} = require('../utils')
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -18,6 +23,9 @@ const makeKeysetKitImageId = (k) =>
     `keyset/${k.profile_keyset_id}/kit/${k.id}/${k.kit_id || urlSlugify(k.name)}`
 const makeKeyboardImageId = (k) =>
     `keyboard/${k.brand_keyboard_slug}/${k.release_id}/${urlSlugify(k.variant_name)}`
+// same id scheme as the artisan importer and scraper
+const makeColorwayImageId = (c) =>
+    `artisan/${c.maker_id}/${c.sculpt_id}/${c.colorway_id}`
 
 // Rows still in review keep their vendor/submitter URL: reviewers see the
 // original image, and rejected rows never leave an upload behind. They get
@@ -100,6 +108,51 @@ const getKeyboardVariants = async () => {
     )
 }
 
+// Colorways added in the Keebdex app can carry an external URL; gdoc and
+// scraper rows are uploaded by their own jobs and already point here.
+const getColorways = async () => {
+    const [colorways, sculpts] = await Promise.all([
+        fetchAll(() =>
+            supabase
+                .from(ARTISAN_COLORWAYS_TABLE)
+                .select(
+                    'id, maker_id, sculpt_id, maker_sculpt_id, colorway_id, img',
+                )
+                .or(OFFICIAL)
+                .not('img', 'is', null)
+                .neq('img', ''),
+        ),
+        getOfficialKeys(ARTISAN_SCULPTS_TABLE, 'maker_sculpt_id'),
+    ])
+
+    return colorways.filter((colorway) => sculpts.has(colorway.maker_sculpt_id))
+}
+
+const syncNewColorway = async (colorway) => {
+    const filename = makeColorwayImageId(colorway)
+
+    const promise = supabase
+        .from(ARTISAN_COLORWAYS_TABLE)
+        .update({ img: `${DELIVERY_BASE_URL}/${filename}/public` })
+        .eq('id', colorway.id)
+
+    const { ok, status } = await uploadImage(filename, colorway.img, promise)
+
+    if (!ok && status === 404) {
+        const { error } = await supabase
+            .from(ARTISAN_COLORWAYS_TABLE)
+            .update({ img: null })
+            .eq('id', colorway.id)
+
+        if (error) {
+            console.error(
+                `Failed to remove image url for colorway ${colorway.id}`,
+                error,
+            )
+        }
+    }
+}
+
 const syncNewKeyset = async (keyset) => {
     const filename = makeKeysetImageId(keyset)
 
@@ -178,8 +231,13 @@ const syncNewKeyboardVariant = async (variant) => {
     }
 }
 
-Promise.all([getKeysets(), getKeysetKits(), getKeyboardVariants()])
-    .then(async ([keysets, kits, variants]) => {
+Promise.all([
+    getKeysets(),
+    getKeysetKits(),
+    getKeyboardVariants(),
+    getColorways(),
+])
+    .then(async ([keysets, kits, variants, colorways]) => {
         const unsyncedKeysets = keysets.filter(
             (keyset) => keyset.img && !keyset.img.includes(DELIVERY_BASE_URL),
         )
@@ -196,9 +254,14 @@ Promise.all([getKeysets(), getKeysetKits(), getKeyboardVariants()])
                     !variant.img_back.includes(DELIVERY_BASE_URL)),
         )
 
+        const unsyncedColorways = colorways.filter(
+            (colorway) => !colorway.img.includes(DELIVERY_BASE_URL),
+        )
+
         console.log('keysets to sync', unsyncedKeysets.length)
         console.log('keyset kits to sync', unsyncedKits.length)
         console.log('keyboard variants to sync', unsyncedVariants.length)
+        console.log('artisan colorways to sync', unsyncedColorways.length)
 
         if (isDryRun) {
             console.log(
@@ -206,6 +269,7 @@ Promise.all([getKeysets(), getKeysetKits(), getKeyboardVariants()])
                 unsyncedKeysets.map(makeKeysetImageId),
                 unsyncedKits.map(makeKeysetKitImageId),
                 unsyncedVariants.map(makeKeyboardImageId),
+                unsyncedColorways.map(makeColorwayImageId),
             )
 
             return
@@ -225,6 +289,12 @@ Promise.all([getKeysets(), getKeysetKits(), getKeyboardVariants()])
 
         if (unsyncedVariants.length) {
             await Promise.map(unsyncedVariants, syncNewKeyboardVariant, {
+                concurrency: 5,
+            })
+        }
+
+        if (unsyncedColorways.length) {
+            await Promise.map(unsyncedColorways, syncNewColorway, {
                 concurrency: 5,
             })
         }
