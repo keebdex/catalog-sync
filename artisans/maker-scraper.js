@@ -7,9 +7,12 @@ const {
     makeImageId,
     updateMakerDatabase,
     setDryRun,
+    setSource,
 } = require('./utils/database')
 const { uploadImage, getListImages } = require('../utils/image')
 const { DELIVERY_BASE_URL, PARTIAL_MAKERS } = require('../utils')
+
+setSource('scraper')
 
 // Check for dry-run flag from command line arguments
 const isDryRun = process.argv.includes('--dry-run')

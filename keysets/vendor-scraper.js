@@ -2,12 +2,9 @@ require('dotenv').config()
 
 const { glob } = require('fs/promises')
 const path = require('path')
-const { createClient } = require('@supabase/supabase-js')
+const { createSupabase } = require('../utils')
 
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_KEY,
-)
+const supabase = createSupabase('vendor')
 
 // Check for dry-run flag from command line arguments
 const isDryRun = process.argv.includes('--dry-run')

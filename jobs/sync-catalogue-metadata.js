@@ -1,16 +1,12 @@
 require('dotenv').config()
 
-const { createClient } = require('@supabase/supabase-js')
 const drive = require('@googleapis/drive')
 const Promise = require('bluebird')
 const { flattenDeep } = require('lodash')
 const path = require('path')
-const { ARTISAN_MAKERS_TABLE } = require('../utils')
+const { createSupabase, ARTISAN_MAKERS_TABLE } = require('../utils')
 
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_KEY,
-)
+const supabase = createSupabase('maintenance')
 
 const getActiveDocIds = () =>
     supabase

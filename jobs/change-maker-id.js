@@ -1,16 +1,13 @@
 require('dotenv').config()
 
-const { createClient } = require('@supabase/supabase-js')
 const {
+    createSupabase,
     ARTISAN_MAKERS_TABLE,
     ARTISAN_SCULPTS_TABLE,
     ARTISAN_COLORWAYS_TABLE,
 } = require('../utils')
 
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_KEY,
-)
+const supabase = createSupabase('maintenance')
 
 const [_node, _path, old_maker_id, new_maker_id] = process.argv
 

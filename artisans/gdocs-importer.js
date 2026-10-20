@@ -8,12 +8,15 @@ const {
     updateMakerDatabase,
     updateMetadata,
     setDryRun,
+    setSource,
 } = require('./utils/database')
 const { PARTIAL_MAKERS } = require('../utils')
 const { downloadDoc, getFile, getRevisions } = require('./utils/docs')
 const { uploadImage, getListImages } = require('../utils/image')
 const { parser } = require('./utils/parser')
 const { findLast, uniqBy } = require('lodash')
+
+setSource('gdoc')
 
 // Check for dry-run flag from command line arguments
 const isDryRun = process.argv.includes('--dry-run')

@@ -379,6 +379,20 @@ export type Database = {
             referencedRelation: "artisan_makers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "artisan_sculpts_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_sculpts_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       colors: {
@@ -410,6 +424,81 @@ export type Database = {
           system?: Database["public"]["Enums"]["keyset_color_matching_system"]
         }
         Relationships: []
+      }
+      edit_suggestions: {
+        Row: {
+          applied: Json | null
+          changes: Json
+          created_at: string
+          domain: string
+          entity_id: number
+          entity_type: string
+          id: number
+          original: Json
+          parent_key: string
+          reason: string | null
+          review_note: string | null
+          review_status: Database["public"]["Enums"]["review_status"]
+          scope: string
+          submitted_by: string
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          applied?: Json | null
+          changes: Json
+          created_at?: string
+          domain: string
+          entity_id: number
+          entity_type: string
+          id?: never
+          original?: Json
+          parent_key: string
+          reason?: string | null
+          review_note?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"]
+          scope: string
+          submitted_by?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          applied?: Json | null
+          changes?: Json
+          created_at?: string
+          domain?: string
+          entity_id?: number
+          entity_type?: string
+          id?: never
+          original?: Json
+          parent_key?: string
+          reason?: string | null
+          review_note?: string | null
+          review_status?: Database["public"]["Enums"]["review_status"]
+          scope?: string
+          submitted_by?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "edit_suggestions_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "edit_suggestions_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       feedbacks: {
         Row: {
@@ -1203,6 +1292,63 @@ export type Database = {
           },
         ]
       }
+      record_revisions: {
+        Row: {
+          action: string
+          actor: string | null
+          changes: Json | null
+          created_at: string
+          domain: string
+          entity_id: number
+          entity_type: string
+          id: number
+          label: string | null
+          parent_key: string | null
+          reverts_revision: number | null
+          run_id: string | null
+          scope: string | null
+          snapshot: Json
+          source: string
+          suggestion_id: number | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          changes?: Json | null
+          created_at?: string
+          domain: string
+          entity_id: number
+          entity_type: string
+          id?: never
+          label?: string | null
+          parent_key?: string | null
+          reverts_revision?: number | null
+          run_id?: string | null
+          scope?: string | null
+          snapshot: Json
+          source: string
+          suggestion_id?: number | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          changes?: Json | null
+          created_at?: string
+          domain?: string
+          entity_id?: number
+          entity_type?: string
+          id?: never
+          label?: string | null
+          parent_key?: string | null
+          reverts_revision?: number | null
+          run_id?: string | null
+          scope?: string | null
+          snapshot?: Json
+          source?: string
+          suggestion_id?: number | null
+        }
+        Relationships: []
+      }
       testimonials: {
         Row: {
           avatar_url: string | null
@@ -1402,6 +1548,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_edit_suggestion: {
+        Args: { p_changes?: Json; p_id: number }
+        Returns: Json
+      }
       can_manage: { Args: { scope: string }; Returns: boolean }
       can_manage_any: { Args: never; Returns: boolean }
       child_submission_can_modify: {
@@ -1441,6 +1591,23 @@ export type Database = {
         Returns: boolean
       }
       dismiss_announcement: { Args: { p_key: string }; Returns: undefined }
+      edit_suggestion_details: {
+        Args: { p_entity_id: number; p_entity_type: string }
+        Returns: Json
+      }
+      edit_suggestion_field_allowed: {
+        Args: { p_entity_type: string; p_key: string }
+        Returns: boolean
+      }
+      edit_suggestion_protected_fields: {
+        Args: { p_entity_type: string }
+        Returns: string[]
+      }
+      edit_suggestion_table: {
+        Args: { p_entity_type: string }
+        Returns: string
+      }
+      is_admin: { Args: never; Returns: boolean }
       is_official_review_status: {
         Args: { s: Database["public"]["Enums"]["review_status"] }
         Returns: boolean
@@ -1459,6 +1626,19 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      record_revision_ignored_fields: { Args: never; Returns: string[] }
+      revert_revision: {
+        Args: { p_id: number; p_mode?: string }
+        Returns: Json
+      }
+      revision_actors: {
+        Args: { p_ids: string[] }
+        Returns: {
+          avatar: string
+          id: string
+          name: string
+        }[]
       }
       submission_details: {
         Args: { p_row: Json; p_table: string }

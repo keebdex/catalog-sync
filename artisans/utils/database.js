@@ -1,4 +1,3 @@
-const { createClient } = require('@supabase/supabase-js')
 const Promise = require('bluebird')
 const { writeFileSync } = require('fs')
 const {
@@ -16,15 +15,15 @@ const {
 } = require('lodash')
 const { deleteImage } = require('../../utils/image')
 const {
+    createSupabase,
     ARTISAN_MAKERS_TABLE,
     ARTISAN_SCULPTS_TABLE,
     ARTISAN_COLORWAYS_TABLE,
 } = require('../../utils')
 
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_KEY,
-)
+// Shared by the gdoc importer and the maker scraper: each entry script names
+// itself with setSource() so Keebdex records its changes under that source.
+let supabase = createSupabase('gdoc')
 
 const isDevelopment = process.env.NODE_ENV !== 'production'
 let dryRun = false
@@ -584,5 +583,8 @@ module.exports = {
     updateMetadata,
     setDryRun(value) {
         dryRun = value
+    },
+    setSource(source) {
+        supabase = createSupabase(source)
     },
 }

@@ -1,19 +1,16 @@
 require('dotenv').config()
 
-const { createClient } = require('@supabase/supabase-js')
 const Promise = require('bluebird')
 const { uploadImage } = require('../utils/image')
 const {
+    createSupabase,
     urlSlugify,
     ARTISAN_COLORWAYS_TABLE,
     ARTISAN_SCULPTS_TABLE,
     DELIVERY_BASE_URL,
 } = require('../utils')
 
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_KEY,
-)
+const supabase = createSupabase('image-sync')
 
 // Check for dry-run flag from command line arguments
 const isDryRun = process.argv.includes('--dry-run')
