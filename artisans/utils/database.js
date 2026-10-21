@@ -19,6 +19,7 @@ const {
     ARTISAN_MAKERS_TABLE,
     ARTISAN_SCULPTS_TABLE,
     ARTISAN_COLORWAYS_TABLE,
+    DELIVERY_BASE_URL,
 } = require('../../utils')
 
 // Shared by the gdoc importer and the maker scraper: each entry script names
@@ -32,8 +33,17 @@ const makeKeyByColorwayId = (c) =>
     `${c.maker_id}-${c.sculpt_id}-${c.colorway_id}`
 const makeKeyByName = (c) => `${c.maker_id}-${c.sculpt_id}-${c.name}`
 
-const makeImageId = (c) =>
-    `artisan/${c.maker_id}/${c.sculpt_id}/${c.colorway_id}`
+// a synced image keeps the path it was uploaded to, which still holds the
+// sculpt's source slug after the sculpt is renamed in Keebdex
+const makeImageId = (c) => {
+    const prefix = `${DELIVERY_BASE_URL}/artisan/`
+
+    if (c.img?.startsWith(prefix) && c.img.endsWith('/public')) {
+        return c.img.slice(DELIVERY_BASE_URL.length + 1, -'/public'.length)
+    }
+
+    return `artisan/${c.maker_id}/${c.sculpt_id}/${c.colorway_id}`
+}
 
 const makerSculptId = (s) => `${s.maker_id}/${s.sculpt_id}`
 
@@ -221,6 +231,42 @@ const GDOC_SCULPT_SYNCABLE_FIELDS = ['release', 'profile', 'cast', 'design']
 // source_document_id is never user-overridable, so it syncs unconditionally
 const GDOC_SCULPT_ALWAYS_SYNCED_FIELDS = ['source_document_id']
 
+// A sculpt renamed in Keebdex gets a new slug and keeps the one it has in
+// the doc or on the maker's website in source_slug. Point incoming
+// sculpts and colorways at the renamed slug, so every match below (sculpts,
+// colorway keys, partial-sync filters) finds the stored rows instead of
+// recreating the sculpt under its old name. Images keep their old path.
+const followRenamedSculpts = (storedSculpts, sculpts, colorways) => {
+    const renamed = {}
+
+    storedSculpts.forEach((s) => {
+        if (s.source_slug && s.source_slug !== s.sculpt_id) {
+            renamed[s.source_slug] = s.sculpt_id
+        }
+    })
+
+    if (isEmpty(renamed)) {
+        return
+    }
+
+    // a slug some stored sculpt still has matches that row directly, and a
+    // renamed slug the doc also uses belongs to that incoming sculpt
+    const storedIds = new Set(storedSculpts.map((s) => s.sculpt_id))
+    const incomingIds = new Set(sculpts.map((s) => s.sculpt_id))
+
+    ;[...sculpts, ...colorways].forEach((row) => {
+        const sculptId = renamed[row.sculpt_id]
+
+        if (
+            sculptId &&
+            !storedIds.has(row.sculpt_id) &&
+            !incomingIds.has(sculptId)
+        ) {
+            row.sculpt_id = sculptId
+        }
+    })
+}
+
 const updateSculpts = async (sculpts, source) => {
     const storedSculpts = await getSculpts(sculpts[0].maker_id, source)
 
@@ -336,9 +382,11 @@ const updateMakerDatabase = async (tables, options = {}) => {
     let sculpts = tables.map(({ colorways, ...rest }) => rest)
     const incomingColorways = flatten(map(tables, 'colorways'))
     const storedColorways = await getColorways(maker_id, source)
+    const storedSculpts = await getSculpts(maker_id, source)
+
+    followRenamedSculpts(storedSculpts, sculpts, incomingColorways)
 
     if (preserve_missing) {
-        const storedSculpts = await getSculpts(maker_id, source)
         const incomingSculptIds = sculpts.map((sculpt) => sculpt.sculpt_id)
         const existingColorwayKeys = incomingColorways.map((colorway) =>
             makeKeyByColorwayId(colorway),
