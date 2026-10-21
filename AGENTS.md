@@ -17,22 +17,23 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 - `artisans/utils/parser.js`: turns the raw Google Docs API response into sculpt/colorway objects.
 - `keysets/vendor-scraper.js` + `keysets/adapters/*.js`: vendor keyset scraper. Each adapter exports `{ name, fetchKeysets }` returning `{ keyset, kits }[]`; adapters earlier in `priorityMap` win when two return the same `profile_keyset_id`.
 - `keysets/utils/index.js`: `getProfileInfo` (vendor title → Keebdex `keyset_profiles.id` and cleaned keyset name) and `removeHtmlTags`.
-- `jobs/`: maintenance scripts. `sync-images.js` / `prune-images.js` (scheduled, both support `--dry-run`; see "Cloudflare Images"), `sync-catalogue-metadata.js`, and the manual `change-maker-id.js <old> <new>` and `delete-maker.js <ids...>`. The last three have no `--dry-run` and write to production when run.
+- `jobs/`: maintenance scripts. `sync-images.js` / `prune-images.js` (scheduled, both support `--dry-run`; see "Cloudflare Images"), `backup-images.js` (scheduled, `--dry-run`; see "Backups"), `sync-catalogue-metadata.js`, and the manual `change-maker-id.js <old> <new>` and `delete-maker.js <ids...>`. The last three have no `--dry-run` and write to production when run.
 - `utils/index.js`: `createSupabase(source)` (see "Revision sources"), shared table names (`ARTISAN_MAKERS_TABLE`, …), `urlSlugify`, `DELIVERY_BASE_URL`, `PARTIAL_MAKERS`. Import table names from here instead of hardcoding strings.
 - `utils/image.js`: Cloudflare Images helpers.
+- `utils/r2.js`: R2 backup bucket helpers (S3 API).
 - `types/database.types.ts`: Supabase types copied from the Keebdex app. Generated; never edit by hand.
 - Local only (untracked): `db/` (per-maker JSON dumps written in development), `keebdex.json` (Google service account key), `.env`, and `supabase/` (Supabase CLI scratch; migrations don't live here).
 
 ## Commands
 
 - `npm run gdocs-importer`, `npm run maker-scraper`, `npm run vendor-scraper`: append `-- --dry-run` to log intended writes instead of making them.
-- `npm run sync-images`, `npm run prune-images`: also take `-- --dry-run`.
+- `npm run sync-images`, `npm run prune-images`, `npm run backup-images`: also take `-- --dry-run`. `backup-images` also takes `-- --limit <n>`.
 - `npm run lint` / `npx eslint <files>`, `npm run format`.
 - There is no test suite. `.vscode/launch.json` has dry-run launch configs for the three sync scripts.
 
-Environment: `SUPABASE_URL`, `SUPABASE_KEY` (service role; RLS does not apply, so the scripts must set moderation fields itself), `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (written to `keebdex.json` in CI). `NODE_ENV=production` in CI; other values enable development-only output such as the `db/` dumps.
+Environment: `SUPABASE_URL`, `SUPABASE_KEY` (service role; RLS does not apply, so the scripts must set moderation fields itself), `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (written to `keebdex.json` in CI), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (backups), `SUPABASE_DB_URL` (CI only, for `pg_dump`). `NODE_ENV=production` in CI; other values enable development-only output such as the `db/` dumps.
 
-CI (`.github/workflows/`, all against production): `artisan-sync` runs the gdocs importer then the maker scraper daily at 23:00 UTC and on pushes to `main` that touch `artisans/`, `utils/`, the package files, or the workflow itself; `image-sync` runs daily at 01:00 UTC; `image-prune` on the 1st and 15th. Each can be started by hand (always a real run), has a concurrency group so runs never overlap, and a timeout. Scripts must exit non-zero on failure (`process.exitCode = 1` in the final catch), or a crashed run shows as a success. The vendor scraper has no workflow and is run manually.
+CI (`.github/workflows/`, all against production): `artisan-sync` runs the gdocs importer then the maker scraper daily at 23:00 UTC and on pushes to `main` that touch `artisans/`, `utils/`, the package files, or the workflow itself; `image-sync` runs daily at 01:00 UTC; `image-prune` on the 1st and 15th; `backup` daily at 02:00 UTC. Each can be started by hand (always a real run), has a concurrency group so runs never overlap, and a timeout. Scripts must exit non-zero on failure (`process.exitCode = 1` in the final catch), or a crashed run shows as a success. The vendor scraper has no workflow and is run manually.
 
 ## Working agreements
 
@@ -89,6 +90,15 @@ Image columns: `artisan_colorways.img`, `keysets.img`, `keyset_kits.img`, `keybo
 
 - `sync-images.js` uploads external keyset, kit, and keyboard variant images under readable ids (`keyset/<profile_keyset_id>/kit/<id>/<kit>`, …) and rewrites the row. It only syncs published rows: the row's own `review_status` is null or `Approved`, and so is its keyset or keyboard. Rows in review keep their original URL so reviewers see the source image and rejected rows leave no upload behind; they sync on the first run after approval. It also uploads external `artisan_colorways.img` URLs (colorways added in the Keebdex app) under the importer's id scheme `artisan/<maker_id>/<sculpt_id>/<colorway_id>`, requiring the colorway and its sculpt to be published. A 404 from the source clears the row's image. Gdoc and scraper colorway images are uploaded by the importer and scraper themselves, which store the Cloudflare URL directly.
 - `prune-images.js` deletes Cloudflare images no row references, counting rows of every review status, and skips images uploaded in the last 7 days (an app upload isn't referenced until its form is saved). Every read must succeed and at least one image must be referenced, or it deletes nothing. Add a column to `IMAGE_COLUMNS` whenever a new table stores Cloudflare images, or its images get pruned.
+
+## Backups
+
+Everything that can't be rebuilt from a source is copied to an R2 bucket (`R2_BUCKET`). Nothing in it is ever deleted by these scripts.
+
+- `images/<id>`: original of every Cloudflare image, including Keebdex app uploads, which exist nowhere else. `backup-images.js` lists Cloudflare Images, fetches only ids not yet in R2 through the API (`/blob`, not a delivery URL), and keeps images after `prune-images.js` deletes them. Restoring re-uploads a file under its old id, so stored delivery URLs work again.
+- `gdocs/<maker_id>/<doc_id>/<revisionId>.json.gz`: the raw Docs API response of each doc revision, written by the gdocs importer before parsing (a deleted doc can never be downloaded again). A failed backup doesn't stop the sync but fails the run, and a production run without R2 configured fails too.
+- `db/daily/<date>.dump` and `db/monthly/<yyyy-mm>.dump`: `pg_dump --format=custom` of the whole database from the `backup` workflow. Restore into a scratch database with `pg_restore`, then copy back what's needed.
+- Retention and protection are set on the bucket, not in code: a lifecycle rule expiring `db/daily/`, and bucket locks on `images/` and `gdocs/`. Use an R2 token scoped to this bucket only.
 
 ## Revision sources
 

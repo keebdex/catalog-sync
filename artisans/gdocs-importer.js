@@ -13,8 +13,10 @@ const {
 const { PARTIAL_MAKERS } = require('../utils')
 const { downloadDoc, getFile, getRevisions } = require('./utils/docs')
 const { uploadImage, getListImages } = require('../utils/image')
+const { isR2Configured, objectExists, putObject } = require('../utils/r2')
 const { parser } = require('./utils/parser')
 const { findLast, uniqBy } = require('lodash')
+const { gzipSync } = require('zlib')
 
 setSource('gdoc')
 
@@ -28,6 +30,29 @@ if (isDryRun) {
 }
 
 let existedImages = []
+
+// A deleted doc can never be downloaded again, so every revision is kept on R2
+// as the raw Docs API response, which the parser can read again later. A
+// failed backup doesn't stop the sync but fails the run.
+async function backupDoc(makerId, documentId, doc) {
+    const key = `gdocs/${makerId}/${documentId}/${doc.revisionId}.json.gz`
+
+    try {
+        if (await objectExists(key)) return
+
+        if (isDryRun) {
+            console.log(`[DRY RUN] Would back up doc to ${key}`)
+
+            return
+        }
+
+        await putObject(key, gzipSync(JSON.stringify(doc)), 'application/gzip')
+        console.log('backed up doc', key)
+    } catch (error) {
+        console.error('unable to back up doc', key, error?.message)
+        process.exitCode = 1
+    }
+}
 
 function customMerge(key) {
     if (key === 'colorways') {
@@ -86,6 +111,12 @@ async function scan(maker) {
                 throw reason
             }
         })
+
+        if (isR2Configured()) {
+            await Promise.map(files, (file, idx) =>
+                backupDoc(id, availableDocumentIds[idx], file),
+            )
+        }
 
         if (!files.length) {
             // every doc for this maker is gone
@@ -202,6 +233,13 @@ async function scan(maker) {
 
 getGDocMakers().then(async (makers) => {
     console.log('🚀 Starting Google Docs import for artisans...')
+
+    if (!isR2Configured()) {
+        console.warn('R2 is not configured, docs will not be backed up')
+
+        // CI must back up every run
+        if (process.env.NODE_ENV === 'production') process.exitCode = 1
+    }
 
     existedImages = await getListImages()
 
