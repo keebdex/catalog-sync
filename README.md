@@ -13,7 +13,7 @@ Collects, normalizes, and syncs artisan, keyset, and image data from Google Docs
 
 ## Data ownership model
 
-Artisan colorway rows are either `source: 'gdoc'` (owned by the Google Docs importer), `source: 'scraper'` (owned by the maker scrapers), or `source: 'keebdex'` (added in the Keebdex app). Each sync only reads and writes rows of its own source. Pipeline-owned rows are only ever patched on a small allow-list of fields (see `GDOC_SYNCABLE_FIELDS` / `GDOC_SCULPT_SYNCABLE_FIELDS` in `artisans/utils/database.js`); a per-row `overridden_fields` array lets the Keebdex app lock individual fields from being overwritten by future syncs.
+Artisan colorway rows are either `source: 'gdoc'` (owned by the Google Docs importer), `source: 'scraper'` (owned by the maker scrapers), or `source: 'keebdex'` (added in the Keebdex app). Each sync only reads and writes rows of its own source. Pipeline-owned rows are only ever patched on a small allow-list of fields (see `GDOC_SYNCABLE_FIELDS` / `GDOC_SCULPT_SYNCABLE_FIELDS` in `artisans/utils/database.js`); a per-row `overridden_fields` array lets the Keebdex app lock individual fields from being overwritten by future syncs. Sculpts are matched by slug; a sculpt renamed in Keebdex keeps its doc or website slug in `source_slug`, and the sync points incoming sculpts and colorways at the renamed slug (images keep their old path).
 
 Schema migrations live in the Keebdex Supabase repository (`keebdex/supabase`), not here. Agent instructions are in [AGENTS.md](AGENTS.md).
 
