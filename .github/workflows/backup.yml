@@ -1,4 +1,4 @@
-name: Keebdex Backup
+name: Keebdex R2 Backup
 
 on:
   workflow_dispatch:
