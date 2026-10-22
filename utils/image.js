@@ -92,6 +92,23 @@ async function getListImages() {
     return images.map((image) => image.id)
 }
 
+// The original file as uploaded, through the API rather than a delivery URL
+// (which would return a resized variant)
+async function downloadOriginal(imageId) {
+    const config = {
+        method: 'get',
+        url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CF_IMAGES_ACCOUNT_ID}/images/v1/${imageId}/blob`,
+        headers: {
+            Authorization: `Bearer ${process.env.CF_IMAGES_API_KEY}`,
+        },
+        responseType: 'arraybuffer',
+    }
+
+    const { data, headers } = await axios(config)
+
+    return { data, contentType: headers['content-type'] }
+}
+
 async function deleteImage(imageId) {
     const config = {
         method: 'delete',
@@ -111,5 +128,6 @@ module.exports = {
     uploadImage,
     listImages,
     getListImages,
+    downloadOriginal,
     deleteImage,
 }

@@ -1,4 +1,4 @@
-name: Keebdex Artisan Data Sync
+name: Keebdex Artisan Sync
 
 on:
   workflow_dispatch:
