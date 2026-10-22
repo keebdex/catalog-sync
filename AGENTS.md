@@ -27,7 +27,7 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 ## Commands
 
 - `npm run gdocs-importer`, `npm run maker-scraper`, `npm run vendor-scraper`: append `-- --dry-run` to log intended writes instead of making them.
-- `npm run sync-images`, `npm run prune-images`, `npm run backup-images`: also take `-- --dry-run`. `backup-images` also takes `-- --limit <n>`.
+- `npm run sync-images`, `npm run prune-images`, `npm run backup-images`: also take `-- --dry-run`. `backup-images` also takes `-- --limit <n>` and `-- --force-trash`.
 - `npm run lint` / `npx eslint <files>`, `npm run format`.
 - There is no test suite. `.vscode/launch.json` has dry-run launch configs for the three sync scripts.
 
@@ -93,11 +93,12 @@ Image columns: `artisan_colorways.img`, `keysets.img`, `keyset_kits.img`, `keybo
 
 ## Backups
 
-Cloudflare images and the database are copied to an R2 bucket (`R2_BUCKET`). Nothing in it is ever deleted by these scripts.
+Cloudflare images and the database are copied to an R2 bucket (`R2_BUCKET`). The only thing these scripts remove from it is a backup moved to the trash.
 
-- `images/<id>`: original of every Cloudflare image, including Keebdex app uploads, which exist nowhere else. `backup-images.js` lists Cloudflare Images, fetches only ids not yet in R2 through the API (`/blob`, not a delivery URL), using `CF_IMAGES_READ_TOKEN` when set: an account-owned token such as `CF_IMAGES_API_KEY` gets a 403 on `/blob` for images whose id Cloudflare generated (the app's UUID uploads), while a user token with Images read access does not. It keeps images after `prune-images.js` deletes them. Restoring re-uploads a file under its old id, so stored delivery URLs work again.
+- `images/<id>`: original of every Cloudflare image, including Keebdex app uploads, which exist nowhere else. `backup-images.js` lists Cloudflare Images, fetches only ids not yet in R2 through the API (`/blob`, not a delivery URL), using `CF_IMAGES_READ_TOKEN` when set: an account-owned token such as `CF_IMAGES_API_KEY` gets a 403 on `/blob` for images whose id Cloudflare generated (the app's UUID uploads), while a user token with Images read access does not. Restoring re-uploads a file under its old id, so stored delivery URLs work again.
+- `trash/images/<id>`: backups of images no longer on Cloudflare (pruned, or replaced in a doc), moved there by `backup-images.js` once they're older than the `images/` lock (`LOCK_DAYS`, 30). It refuses to trash more than `MAX_TRASH_RATIO` (10%) of the backups in one run, or anything when Cloudflare lists no images, since a bad listing would make every backup look orphaned; `--force-trash` lifts the ratio for a deliberate mass deletion. A move is copy then delete, so a failure leaves the backup in both places, never in neither.
 - `db/daily/<date>.dump` and `db/monthly/<yyyy-mm>.dump`: `pg_dump --format=custom` of the whole database from the `backup` workflow. Restore into a scratch database with `pg_restore`, then copy back what's needed.
-- Retention and protection are set on the bucket, not in code: a lifecycle rule expiring `db/daily/`, and a bucket lock on `images/`. Use an R2 token scoped to this bucket only.
+- Retention and protection are set on the bucket, not in code: lifecycle rules expiring `db/daily/` (30 days) and `trash/` (90 days), and bucket locks on `images/` (30 days, matching `LOCK_DAYS`) and `trash/` (90 days, so a trashed image can be restored for at least that long). Use an R2 token scoped to this bucket only.
 
 ## Revision sources
 

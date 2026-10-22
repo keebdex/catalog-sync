@@ -1,5 +1,7 @@
 const {
     S3Client,
+    CopyObjectCommand,
+    DeleteObjectCommand,
     ListObjectsV2Command,
     PutObjectCommand,
 } = require('@aws-sdk/client-s3')
@@ -37,8 +39,8 @@ const getClient = () => {
     return client
 }
 
-// Every key under a prefix, as a Set
-async function listKeys(prefix, keys = new Set(), token) {
+// Every object under a prefix, as a Map of key → last modified date
+async function listObjects(prefix, objects = new Map(), token) {
     const { Contents = [], NextContinuationToken } = await getClient().send(
         new ListObjectsV2Command({
             Bucket: R2_BUCKET,
@@ -47,13 +49,13 @@ async function listKeys(prefix, keys = new Set(), token) {
         }),
     )
 
-    Contents.forEach(({ Key }) => keys.add(Key))
+    Contents.forEach(({ Key, LastModified }) => objects.set(Key, LastModified))
 
     if (NextContinuationToken) {
-        return listKeys(prefix, keys, NextContinuationToken)
+        return listObjects(prefix, objects, NextContinuationToken)
     }
 
-    return keys
+    return objects
 }
 
 async function putObject(key, body, contentType, metadata) {
@@ -68,4 +70,22 @@ async function putObject(key, body, contentType, metadata) {
     )
 }
 
-module.exports = { listKeys, putObject }
+// Copy, then delete: a failed delete leaves the object in both places rather
+// than in neither. Metadata is copied along.
+async function moveObject(from, to) {
+    const source = from.split('/').map(encodeURIComponent).join('/')
+
+    await getClient().send(
+        new CopyObjectCommand({
+            Bucket: R2_BUCKET,
+            CopySource: `${R2_BUCKET}/${source}`,
+            Key: to,
+        }),
+    )
+
+    await getClient().send(
+        new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: from }),
+    )
+}
+
+module.exports = { listObjects, moveObject, putObject }

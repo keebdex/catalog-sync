@@ -30,7 +30,7 @@ npm run lint / lint:fix  # eslint
 npm run format           # prettier
 ```
 
-Pass `--dry-run` to the importer, scraper, and image scripts to log intended changes (database writes, uploads, deletions, backups) without making them. `backup-images` also takes `--limit <n>` to back up a small batch first.
+Pass `--dry-run` to the importer, scraper, and image scripts to log intended changes (database writes, uploads, deletions, backups) without making them. `backup-images` also takes `--limit <n>` to back up a small batch first, and `--force-trash` to trash more than 10% of the backups in one run.
 
 ## Workflows
 
@@ -47,9 +47,15 @@ The vendor scraper has no workflow and is run manually.
 
 ## Backups
 
-The R2 bucket holds the original of every Cloudflare image under `images/<id>` (including uploads from the Keebdex app, which exist nowhere else) and daily database dumps under `db/daily/` (the dump of the 1st is also kept under `db/monthly/`). Nothing is ever deleted from it by these scripts. Retention is set on the bucket: a lifecycle rule expiring `db/daily/` and a bucket lock on `images/`.
+The R2 bucket holds the original of every Cloudflare image under `images/<id>` (including uploads from the Keebdex app, which exist nowhere else) and daily database dumps under `db/daily/` (the dump of the 1st is also kept under `db/monthly/`). When an image is gone from Cloudflare, its backup moves to `trash/images/<id>` and is kept for 90 days before it expires. Retention is set on the bucket:
 
-To restore, re-upload images to Cloudflare under their old ids (the key without `images/`) so stored URLs work again, and restore a dump into a scratch database with `pg_restore` before copying back what's needed.
+| Prefix      | Lock    | Lifecycle            |
+| ----------- | ------- | -------------------- |
+| `images/`   | 30 days | none                 |
+| `trash/`    | 90 days | expire after 90 days |
+| `db/daily/` | none    | expire after 30 days |
+
+To restore, re-upload images to Cloudflare under their old ids (the key without `images/` or `trash/images/`) so stored URLs work again, and restore a dump into a scratch database with `pg_restore` before copying back what's needed.
 
 ## Environment variables
 
