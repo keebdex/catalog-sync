@@ -1,6 +1,5 @@
 const {
     S3Client,
-    HeadObjectCommand,
     ListObjectsV2Command,
     PutObjectCommand,
 } = require('@aws-sdk/client-s3')
@@ -8,17 +7,17 @@ const {
 const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } =
     process.env
 
-const isR2Configured = () =>
-    Boolean(
-        R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET,
-    )
-
 let client
 
 // R2 speaks the S3 API. Checksums only when required: R2 rejects some of the
 // integrity headers newer SDKs send by default.
 const getClient = () => {
-    if (!isR2Configured()) {
+    if (
+        !R2_ACCOUNT_ID ||
+        !R2_ACCESS_KEY_ID ||
+        !R2_SECRET_ACCESS_KEY ||
+        !R2_BUCKET
+    ) {
         throw new Error(
             'R2 is not configured (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET)',
         )
@@ -57,20 +56,6 @@ async function listKeys(prefix, keys = new Set(), token) {
     return keys
 }
 
-async function objectExists(key) {
-    try {
-        await getClient().send(
-            new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }),
-        )
-
-        return true
-    } catch (error) {
-        if (error?.$metadata?.httpStatusCode === 404) return false
-
-        throw error
-    }
-}
-
 async function putObject(key, body, contentType, metadata) {
     return getClient().send(
         new PutObjectCommand({
@@ -83,4 +68,4 @@ async function putObject(key, body, contentType, metadata) {
     )
 }
 
-module.exports = { isR2Configured, listKeys, objectExists, putObject }
+module.exports = { listKeys, putObject }

@@ -25,6 +25,7 @@ npm run maker-scraper    # scrape artisan maker websites
 npm run vendor-scraper   # scrape vendor keyset listings
 npm run sync-images      # sync images to Cloudflare Images
 npm run prune-images     # remove orphaned Cloudflare images
+npm run backup-images    # copy new Cloudflare images to the R2 backup bucket
 npm run lint / lint:fix  # eslint
 npm run format           # prettier
 ```

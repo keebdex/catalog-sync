@@ -31,7 +31,7 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 - `npm run lint` / `npx eslint <files>`, `npm run format`.
 - There is no test suite. `.vscode/launch.json` has dry-run launch configs for the three sync scripts.
 
-Environment: `SUPABASE_URL`, `SUPABASE_KEY` (service role; RLS does not apply, so the scripts must set moderation fields itself), `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (written to `keebdex.json` in CI), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (backups), `SUPABASE_DB_URL` (CI only, for `pg_dump`). `NODE_ENV=production` in CI; other values enable development-only output such as the `db/` dumps.
+Environment: `SUPABASE_URL`, `SUPABASE_KEY` (service role; RLS does not apply, so the scripts must set moderation fields itself), `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (written to `keebdex.json` in CI), `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (`backup-images`), `SUPABASE_DB_URL` (CI only, for `pg_dump`). `NODE_ENV=production` in CI; other values enable development-only output such as the `db/` dumps.
 
 CI (`.github/workflows/`, all against production): `artisan-sync` runs the gdocs importer then the maker scraper daily at 23:00 UTC and on pushes to `main` that touch `artisans/`, `utils/`, the package files, or the workflow itself; `image-sync` runs daily at 01:00 UTC; `image-prune` on the 1st and 15th; `backup` daily at 02:00 UTC. Each can be started by hand (always a real run), has a concurrency group so runs never overlap, and a timeout. Scripts must exit non-zero on failure (`process.exitCode = 1` in the final catch), or a crashed run shows as a success. The vendor scraper has no workflow and is run manually.
 
@@ -93,12 +93,11 @@ Image columns: `artisan_colorways.img`, `keysets.img`, `keyset_kits.img`, `keybo
 
 ## Backups
 
-Everything that can't be rebuilt from a source is copied to an R2 bucket (`R2_BUCKET`). Nothing in it is ever deleted by these scripts.
+Cloudflare images and the database are copied to an R2 bucket (`R2_BUCKET`). Nothing in it is ever deleted by these scripts.
 
 - `images/<id>`: original of every Cloudflare image, including Keebdex app uploads, which exist nowhere else. `backup-images.js` lists Cloudflare Images, fetches only ids not yet in R2 through the API (`/blob`, not a delivery URL), and keeps images after `prune-images.js` deletes them. Restoring re-uploads a file under its old id, so stored delivery URLs work again.
-- `gdocs/<maker_id>/<doc_id>/<revisionId>.json.gz`: the raw Docs API response of each doc revision, written by the gdocs importer before parsing (a deleted doc can never be downloaded again). A failed backup doesn't stop the sync but fails the run, and a production run without R2 configured fails too.
 - `db/daily/<date>.dump` and `db/monthly/<yyyy-mm>.dump`: `pg_dump --format=custom` of the whole database from the `backup` workflow. Restore into a scratch database with `pg_restore`, then copy back what's needed.
-- Retention and protection are set on the bucket, not in code: a lifecycle rule expiring `db/daily/`, and bucket locks on `images/` and `gdocs/`. Use an R2 token scoped to this bucket only.
+- Retention and protection are set on the bucket, not in code: a lifecycle rule expiring `db/daily/`, and a bucket lock on `images/`. Use an R2 token scoped to this bucket only.
 
 ## Revision sources
 
