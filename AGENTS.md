@@ -17,7 +17,7 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 - `artisans/utils/parser.js`: turns the raw Google Docs API response into sculpt/colorway objects.
 - `keysets/vendor-scraper.js` + `keysets/adapters/*.js`: vendor keyset scraper. Each adapter exports `{ name, fetchKeysets }` returning `{ keyset, kits }[]`; adapters earlier in `priorityMap` win when two return the same `profile_keyset_id`.
 - `keysets/utils/index.js`: `getProfileInfo` (vendor title → Keebdex `keyset_profiles.id` and cleaned keyset name) and `removeHtmlTags`.
-- `jobs/`: maintenance scripts. `sync-images.js` / `prune-images.js` (scheduled, both support `--dry-run`; see "Cloudflare Images"), `backup-images.js` (scheduled, `--dry-run`; see "Backups"), `sync-catalogue-metadata.js`, and the manual `change-maker-id.js <old> <new>` and `delete-maker.js <ids...>`. The last three have no `--dry-run` and write to production when run.
+- `jobs/`: maintenance scripts. `sync-images.js` / `prune-images.js` (scheduled, both support `--dry-run`; see "Cloudflare Images"), `backup-images.js` (scheduled, `--dry-run`; see "Backups"), and `sync-catalogue-metadata.js`, which has no `--dry-run` and writes to production when run.
 - `utils/index.js`: `createSupabase(source)` (see "Revision sources"), shared table names (`ARTISAN_MAKERS_TABLE`, …), `urlSlugify`, `DELIVERY_BASE_URL`, `PARTIAL_MAKERS`. Import table names from here instead of hardcoding strings.
 - `utils/image.js`: Cloudflare Images helpers.
 - `utils/r2.js`: R2 backup bucket helpers (S3 API).
@@ -104,7 +104,7 @@ Cloudflare images and the database are copied to an R2 bucket (`R2_BUCKET`). Not
 Keebdex records every insert, update, and delete on sculpts, colorways, keysets, kits, keyboards, releases, and variants as a revision (`record_revisions`), which staff read and can revert. With the service role key it trusts two request headers to tell which job made a change: `x-keebdex-source` and `x-keebdex-run` (`GITHUB_RUN_ID` in CI, otherwise a UUID per process), so a run's changes read as one entry. Without them a sync's changes are recorded as `sql`.
 
 - Every Supabase client goes through `createSupabase(source)` in `utils/index.js`; never call `createClient` directly.
-- Sources: `gdoc` (`gdocs-importer.js`), `scraper` (`maker-scraper.js`), `vendor` (`vendor-scraper.js`), `image-sync` (`sync-images.js`), `maintenance` (`change-maker-id.js`, `delete-maker.js`, `sync-catalogue-metadata.js`). `prune-images.js` writes none of these tables and sends no source. A new source must also be added to the whitelist in Keebdex's `record_revision()` trigger and the `record_revisions_source_check` constraint.
+- Sources: `gdoc` (`gdocs-importer.js`), `scraper` (`maker-scraper.js`), `vendor` (`vendor-scraper.js`), `image-sync` (`sync-images.js`), `maintenance` (`sync-catalogue-metadata.js`). `prune-images.js` writes none of these tables and sends no source. A new source must also be added to the whitelist in Keebdex's `record_revision()` trigger and the `record_revisions_source_check` constraint.
 - `artisans/utils/database.js` is shared by the gdoc importer and the maker scraper, so it starts with a `gdoc` client and each entry script calls `setSource()` before any query.
 - Updates that change only `order`, `source_document_id`, or `overridden_fields` write no revision, and `updateRows` already skips unchanged rows, so a no-op sync records nothing.
 

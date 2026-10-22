@@ -6,7 +6,7 @@ Collects, normalizes, and syncs artisan, keyset, and image data from Google Docs
 
 - `artisans/` — Google Docs importer (`gdocs-importer.js`) and per-maker website scrapers (`maker-scraper.js`, `makers/`). Shared sync logic lives in `artisans/utils/database.js`.
 - `keysets/` — vendor keyset scraper (`vendor-scraper.js`) with per-vendor adapters in `adapters/`.
-- `jobs/` — one-off/maintenance scripts (image pruning/syncing, maker id changes, catalogue metadata sync).
+- `jobs/` — maintenance scripts (image syncing, pruning and R2 backup, catalogue metadata sync).
 - `utils/` — shared constants (table names, Cloudflare image delivery URL) and Cloudflare Images helpers.
 - `db/` — local JSON dumps written per maker in development for debugging parsed data.
 - `.github/workflows/` — scheduled CI jobs that run the importer/scraper/image jobs against production.
