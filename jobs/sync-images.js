@@ -1,6 +1,7 @@
 require('dotenv').config()
 
 const Promise = require('bluebird')
+const { crc32 } = require('crc')
 const { uploadImage } = require('../utils/image')
 const {
     createSupabase,
@@ -15,14 +16,28 @@ const supabase = createSupabase('image-sync')
 // Check for dry-run flag from command line arguments
 const isDryRun = process.argv.includes('--dry-run')
 
-const makeKeysetImageId = (k) => `keyset/${k.profile_keyset_id}`
+// Every id ends with a hash of the source URL. A row whose image is replaced
+// by a new URL gets a new id (Cloudflare rejects an existing one), and an id
+// never comes to hold different content, which the R2 backup relies on. The
+// old upload is pruned once nothing references it.
+const urlHash = (url) => crc32(url).toString(16)
+
+const makeKeysetImageId = (k) =>
+    `keyset/${k.profile_keyset_id}/${urlHash(k.img)}`
 const makeKeysetKitImageId = (k) =>
-    `keyset/${k.profile_keyset_id}/kit/${k.id}/${k.kit_id || urlSlugify(k.name)}`
-const makeKeyboardImageId = (k) =>
-    `keyboard/${k.brand_keyboard_slug}/${k.release_id}/${urlSlugify(k.variant_name)}`
-// same id scheme as the artisan importer and scraper
+    `keyset/${k.profile_keyset_id}/kit/${k.id}/${k.kit_id || urlSlugify(k.name)}/${urlHash(k.img)}`
+const makeKeyboardImageId = (k, side) =>
+    `keyboard/${k.brand_keyboard_slug}/${k.release_id}/${urlSlugify(k.variant_name)}/${side}/${urlHash(k[`img_${side}`])}`
+// the artisan importer and scraper scheme, plus the URL hash
 const makeColorwayImageId = (c) =>
-    `artisan/${c.maker_id}/${c.sculpt_id}/${c.colorway_id}`
+    `artisan/${c.maker_id}/${c.sculpt_id}/${c.colorway_id}/${urlHash(c.img)}`
+
+const KEYBOARD_SIDES = ['front', 'back']
+
+const isUnsynced = (url) => url && !url.includes(DELIVERY_BASE_URL)
+
+const unsyncedSides = (variant) =>
+    KEYBOARD_SIDES.filter((side) => isUnsynced(variant[`img_${side}`]))
 
 // Rows still in review keep their vendor/submitter URL: reviewers see the
 // original image, and rejected rows never leave an upload behind. They get
@@ -85,17 +100,12 @@ const getKeysetKits = async () => {
     return kits.filter((kit) => keysets.has(kit.profile_keyset_id))
 }
 
+// Sides without an image are skipped later, so a variant with only a front or
+// only a back image still syncs.
 const getKeyboardVariants = async () => {
     const [variants, keyboards] = await Promise.all([
         fetchAll(() =>
-            supabase
-                .from('keyboard_variants')
-                .select('*')
-                .or(OFFICIAL)
-                .not('img_front', 'is', null)
-                .neq('img_front', '')
-                .not('img_back', 'is', null)
-                .neq('img_back', ''),
+            supabase.from('keyboard_variants').select('*').or(OFFICIAL),
         ),
         getOfficialKeys('keyboards', 'brand_keyboard_slug'),
     ])
@@ -155,9 +165,7 @@ const syncNewKeyset = async (keyset) => {
 
     const promise = supabase
         .from('keysets')
-        .update({
-            img: `${DELIVERY_BASE_URL}/keyset/${keyset.profile_keyset_id}/public`,
-        })
+        .update({ img: `${DELIVERY_BASE_URL}/${filename}/public` })
         .eq('profile_keyset_id', keyset.profile_keyset_id)
 
     const { ok, status } = await uploadImage(filename, keyset.img, promise)
@@ -205,26 +213,17 @@ const syncNewKeysetKit = async (kit) => {
 }
 
 const syncNewKeyboardVariant = async (variant) => {
-    const filename = makeKeyboardImageId(variant)
+    for (const side of unsyncedSides(variant)) {
+        const filename = makeKeyboardImageId(variant, side)
 
-    if (variant.img_front && !variant.img_front.includes(DELIVERY_BASE_URL)) {
-        const promiseFront = supabase
+        const promise = supabase
             .from('keyboard_variants')
             .update({
-                img_front: `${DELIVERY_BASE_URL}/${filename}/front/public`,
+                [`img_${side}`]: `${DELIVERY_BASE_URL}/${filename}/public`,
             })
             .eq('id', variant.id)
-        await uploadImage(`${filename}/front`, variant.img_front, promiseFront)
-    }
 
-    if (variant.img_back && !variant.img_back.includes(DELIVERY_BASE_URL)) {
-        const promiseBack = supabase
-            .from('keyboard_variants')
-            .update({
-                img_back: `${DELIVERY_BASE_URL}/${filename}/back/public`,
-            })
-            .eq('id', variant.id)
-        await uploadImage(`${filename}/back`, variant.img_back, promiseBack)
+        await uploadImage(filename, variant[`img_${side}`], promise)
     }
 }
 
@@ -235,24 +234,18 @@ Promise.all([
     getColorways(),
 ])
     .then(async ([keysets, kits, variants, colorways]) => {
-        const unsyncedKeysets = keysets.filter(
-            (keyset) => keyset.img && !keyset.img.includes(DELIVERY_BASE_URL),
+        const unsyncedKeysets = keysets.filter((keyset) =>
+            isUnsynced(keyset.img),
         )
 
-        const unsyncedKits = kits.filter(
-            (kit) => kit.img && !kit.img.includes(DELIVERY_BASE_URL),
-        )
+        const unsyncedKits = kits.filter((kit) => isUnsynced(kit.img))
 
         const unsyncedVariants = variants.filter(
-            (variant) =>
-                (variant.img_front &&
-                    !variant.img_front.includes(DELIVERY_BASE_URL)) ||
-                (variant.img_back &&
-                    !variant.img_back.includes(DELIVERY_BASE_URL)),
+            (variant) => unsyncedSides(variant).length,
         )
 
-        const unsyncedColorways = colorways.filter(
-            (colorway) => !colorway.img.includes(DELIVERY_BASE_URL),
+        const unsyncedColorways = colorways.filter((colorway) =>
+            isUnsynced(colorway.img),
         )
 
         console.log('keysets to sync', unsyncedKeysets.length)
@@ -265,7 +258,11 @@ Promise.all([
                 '[DRY RUN] Would upload',
                 unsyncedKeysets.map(makeKeysetImageId),
                 unsyncedKits.map(makeKeysetKitImageId),
-                unsyncedVariants.map(makeKeyboardImageId),
+                unsyncedVariants.flatMap((variant) =>
+                    unsyncedSides(variant).map((side) =>
+                        makeKeyboardImageId(variant, side),
+                    ),
+                ),
                 unsyncedColorways.map(makeColorwayImageId),
             )
 
