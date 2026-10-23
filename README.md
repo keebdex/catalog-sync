@@ -47,16 +47,25 @@ The vendor scraper has no workflow and is run manually.
 
 ## Backups
 
-The R2 bucket holds the original of every Cloudflare image under `images/<id>` (including uploads from the Keebdex app, which exist nowhere else) and daily database dumps under `db/daily/` (the dump of the 1st is also kept under `db/monthly/`). When an image is gone from Cloudflare, its backup moves to `trash/images/<id>` and is kept for 90 days before it expires. Retention is set on the bucket:
+The R2 bucket holds the original of every Cloudflare image under `images/<id>` (including uploads from the Keebdex app, which exist nowhere else) and daily database dumps under `db/daily/` (the dump of the 1st is also kept under `db/monthly/`). Retention is set on the bucket by infrastructure:
 
-| Prefix      | Lock    | Lifecycle            |
-| ----------- | ------- | -------------------- |
-| `images/`   | 30 days | none                 |
-| `trash/`    | 90 days | expire after 90 days |
-| `db/daily/` | none    | expire after 30 days |
+| Prefix      | Lock         | Lifecycle            |
+| ----------- | ------------ | -------------------- |
+| `images/`   | indefinitely | none                 |
+| `db/daily/` | none         | expire after 30 days |
+
+### Trash (driven by the bucket rules)
+
+`backup-images` moves the backup of an image that is gone from Cloudflare to `trash/images/<id>`, but only once the bucket's lock rules allow it to leave `images/`. It reads those rules on every run, so the infrastructure that owns the bucket decides everything:
+
+- `images/` locked indefinitely (today): nothing moves.
+- `images/` locked for N days: unused backups older than N days move to the trash.
+- `trash/` follows its own rules: an indefinite lock keeps everything; a 90-day lock plus a 90-day expiry lifecycle rule deletes after 90 days.
+
+Reading the rules needs `R2_API_TOKEN`, a read-only Cloudflare API token. Without it, or if the rules can't be read, the trash is skipped.
 
 To restore, re-upload images to Cloudflare under their old ids (the key without `images/` or `trash/images/`) so stored URLs work again, and restore a dump into a scratch database with `pg_restore` before copying back what's needed.
 
 ## Environment variables
 
-`SUPABASE_URL`, `SUPABASE_KEY`, `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (JSON key written to `keebdex.json`), and for backups `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (a token scoped to the backup bucket), `R2_BUCKET`, `CF_IMAGES_READ_TOKEN` (a user API token with Images read access; account tokens can't download originals of Keebdex app uploads), and `SUPABASE_DB_URL` (session pooler connection string, CI only).
+`SUPABASE_URL`, `SUPABASE_KEY`, `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (JSON key written to `keebdex.json`), and for backups `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (a token scoped to the backup bucket), `R2_BUCKET`, `CF_IMAGES_READ_TOKEN` (a user API token with Images read access; account tokens can't download originals of Keebdex app uploads), and `SUPABASE_DB_URL` (session pooler connection string, CI only). `R2_API_TOKEN` (optional, read-only) lets `backup-images` read the bucket lock rules for the trash.

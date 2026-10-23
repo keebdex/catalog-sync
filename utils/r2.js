@@ -5,6 +5,7 @@ const {
     ListObjectsV2Command,
     PutObjectCommand,
 } = require('@aws-sdk/client-s3')
+const { default: axios } = require('axios')
 
 const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } =
     process.env
@@ -88,4 +89,20 @@ async function moveObject(from, to) {
     )
 }
 
-module.exports = { listObjects, moveObject, putObject }
+// The bucket's lock rules, through the Cloudflare API: the S3 API has no view
+// of them. Needs R2_API_TOKEN, an API token with R2 read access; the S3 keys
+// above can't read bucket settings.
+async function getLockRules() {
+    if (!process.env.R2_API_TOKEN) {
+        throw new Error('R2_API_TOKEN is not set')
+    }
+
+    const { data } = await axios.get(
+        `https://api.cloudflare.com/client/v4/accounts/${R2_ACCOUNT_ID}/r2/buckets/${R2_BUCKET}/lock`,
+        { headers: { Authorization: `Bearer ${process.env.R2_API_TOKEN}` } },
+    )
+
+    return data.result?.rules || []
+}
+
+module.exports = { getLockRules, listObjects, moveObject, putObject }

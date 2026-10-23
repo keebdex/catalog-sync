@@ -2,7 +2,12 @@ require('dotenv').config()
 
 const Promise = require('bluebird')
 const { listImages, downloadOriginal } = require('../utils/image')
-const { listObjects, moveObject, putObject } = require('../utils/r2')
+const {
+    getLockRules,
+    listObjects,
+    moveObject,
+    putObject,
+} = require('../utils/r2')
 
 // Check for dry-run flag from command line arguments
 const isDryRun = process.argv.includes('--dry-run')
@@ -19,17 +24,31 @@ const forceTrash = process.argv.includes('--force-trash')
 // under its old id and every stored delivery URL works again
 const PREFIX = 'images/'
 
-// The backup of an image deleted from Cloudflare moves here. A bucket lock
-// keeps it for 90 days, then a lifecycle rule expires it, so an image deleted
-// by mistake can be restored for at least that long.
+// The backup of an image deleted from Cloudflare moves here; how long it stays
+// is up to the bucket's lock and lifecycle rules for this prefix
 const TRASH_PREFIX = 'trash/images/'
-
-// images/ is locked for this long after upload, so younger backups can't be
-// moved yet; they are picked up by a later run
-const LOCK_DAYS = 30
 
 // A bad Cloudflare listing would make every backup look orphaned
 const MAX_TRASH_RATIO = 0.1
+
+// The bucket's lock rules, managed outside this repo, decide what may leave
+// images/: a backup is movable once no enabled rule covering its key still
+// retains it. An unknown condition counts as retaining.
+const isUnlocked = (key, modified, rules, now) =>
+    rules.every(({ enabled, prefix = '', condition }) => {
+        if (!enabled || !key.startsWith(prefix)) return true
+
+        switch (condition?.type) {
+            case 'Age':
+                return (
+                    now - modified.getTime() >= condition.maxAgeSeconds * 1000
+                )
+            case 'Date':
+                return now >= new Date(condition.date).getTime()
+            default:
+                return false
+        }
+    })
 
 const backupMissing = async (images, backedUp) => {
     // Each image is fetched once: a backed-up id is never fetched again
@@ -77,19 +96,23 @@ const backupMissing = async (images, backedUp) => {
     return failed
 }
 
-const trashOrphaned = async (images, backedUp) => {
+const trashOrphaned = async (images, backedUp, rules) => {
     if (!images.length) {
         throw new Error('No Cloudflare images listed, refusing to trash')
     }
 
     const remoteIds = new Set(images.map(({ id }) => id))
-    const cutoff = Date.now() - LOCK_DAYS * 24 * 60 * 60 * 1000
+    const now = Date.now()
 
-    const orphaned = [...backedUp]
-        .filter(([key]) => !remoteIds.has(key.slice(PREFIX.length)))
-        .filter(([, modified]) => modified.getTime() < cutoff)
+    const unused = [...backedUp].filter(
+        ([key]) => !remoteIds.has(key.slice(PREFIX.length)),
+    )
+    const orphaned = unused
+        .filter(([key, modified]) => isUnlocked(key, modified, rules, now))
         .map(([key]) => key)
 
+    console.log('unused backups', unused.length)
+    console.log('unused backups still locked', unused.length - orphaned.length)
     console.log('backups to trash', orphaned.length)
 
     if (!forceTrash && orphaned.length > backedUp.size * MAX_TRASH_RATIO) {
@@ -142,7 +165,23 @@ const backup = async () => {
     console.log('backed up images', backedUp.size)
 
     const failedBackups = await backupMissing(images, backedUp)
-    const failedTrash = await trashOrphaned(images, backedUp)
+
+    // Rules that can't be read are treated as a lock on everything
+    let failedTrash = 0
+    let rules = null
+
+    try {
+        rules = await getLockRules()
+    } catch (error) {
+        console.warn(
+            'unable to read bucket lock rules, skipping trash',
+            error?.message,
+        )
+    }
+
+    if (rules) {
+        failedTrash = await trashOrphaned(images, backedUp, rules)
+    }
 
     if (failedBackups || failedTrash) {
         throw new Error(
