@@ -1,8 +1,11 @@
 const {
     S3Client,
+    CopyObjectCommand,
+    DeleteObjectCommand,
     ListObjectsV2Command,
     PutObjectCommand,
 } = require('@aws-sdk/client-s3')
+const { default: axios } = require('axios')
 
 const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } =
     process.env
@@ -37,8 +40,8 @@ const getClient = () => {
     return client
 }
 
-// Every key under a prefix, as a Set
-async function listKeys(prefix, keys = new Set(), token) {
+// Every object under a prefix, as a Map of key → last modified date
+async function listObjects(prefix, objects = new Map(), token) {
     const { Contents = [], NextContinuationToken } = await getClient().send(
         new ListObjectsV2Command({
             Bucket: R2_BUCKET,
@@ -47,13 +50,13 @@ async function listKeys(prefix, keys = new Set(), token) {
         }),
     )
 
-    Contents.forEach(({ Key }) => keys.add(Key))
+    Contents.forEach(({ Key, LastModified }) => objects.set(Key, LastModified))
 
     if (NextContinuationToken) {
-        return listKeys(prefix, keys, NextContinuationToken)
+        return listObjects(prefix, objects, NextContinuationToken)
     }
 
-    return keys
+    return objects
 }
 
 async function putObject(key, body, contentType, metadata) {
@@ -68,4 +71,38 @@ async function putObject(key, body, contentType, metadata) {
     )
 }
 
-module.exports = { listKeys, putObject }
+// Copy, then delete: a failed delete leaves the object in both places rather
+// than in neither. Metadata is copied along.
+async function moveObject(from, to) {
+    const source = from.split('/').map(encodeURIComponent).join('/')
+
+    await getClient().send(
+        new CopyObjectCommand({
+            Bucket: R2_BUCKET,
+            CopySource: `${R2_BUCKET}/${source}`,
+            Key: to,
+        }),
+    )
+
+    await getClient().send(
+        new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: from }),
+    )
+}
+
+// The bucket's lock rules, through the Cloudflare API: the S3 API has no view
+// of them. Needs R2_API_TOKEN, an API token with R2 read access; the S3 keys
+// above can't read bucket settings.
+async function getLockRules() {
+    if (!process.env.R2_API_TOKEN) {
+        throw new Error('R2_API_TOKEN is not set')
+    }
+
+    const { data } = await axios.get(
+        `https://api.cloudflare.com/client/v4/accounts/${R2_ACCOUNT_ID}/r2/buckets/${R2_BUCKET}/lock`,
+        { headers: { Authorization: `Bearer ${process.env.R2_API_TOKEN}` } },
+    )
+
+    return data.result?.rules || []
+}
+
+module.exports = { getLockRules, listObjects, moveObject, putObject }
