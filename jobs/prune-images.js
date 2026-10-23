@@ -30,7 +30,8 @@ const IMAGE_COLUMNS = [
 // `${DELIVERY_BASE_URL}/<id>/<variant>` → <id> (ids may contain slashes);
 // other URLs aren't Cloudflare images
 const toImageId = (url) => {
-    if (!url?.startsWith(`${DELIVERY_BASE_URL}/`)) return null
+    if (typeof url !== 'string' || !url.startsWith(`${DELIVERY_BASE_URL}/`))
+        return null
 
     const path = url.slice(DELIVERY_BASE_URL.length + 1)
 
@@ -39,10 +40,15 @@ const toImageId = (url) => {
 
 // Pages through a table and throws on any error: a failed read would make
 // every image of that table look unreferenced and get it deleted.
-const fetchAll = async (table, columns, rows = []) => {
-    const { data, error } = await supabase
-        .from(table)
-        .select(['id', ...columns].join(', '))
+const fetchAll = async (
+    table,
+    columns,
+    filter = (query) => query,
+    rows = [],
+) => {
+    const { data, error } = await filter(
+        supabase.from(table).select(['id', ...columns].join(', ')),
+    )
         .order('id')
         .range(rows.length, rows.length + 999)
 
@@ -53,7 +59,7 @@ const fetchAll = async (table, columns, rows = []) => {
     rows = rows.concat(data)
 
     if (data.length === 1000) {
-        return fetchAll(table, columns, rows)
+        return fetchAll(table, columns, filter, rows)
     }
 
     return rows
@@ -73,6 +79,22 @@ const getReferencedImages = async () => {
             })
         })
     }
+
+    // An image added through an edit suggestion (e.g. Add Photo) is only in
+    // the suggestion's `changes` ({ column: value }) until staff approve it.
+    const suggestions = await fetchAll(
+        'edit_suggestions',
+        ['changes'],
+        (query) => query.eq('review_status', 'Pending'),
+    )
+
+    suggestions.forEach(({ changes }) => {
+        Object.values(changes ?? {}).forEach((value) => {
+            const id = toImageId(value)
+
+            if (id) referenced.add(id)
+        })
+    })
 
     return referenced
 }
