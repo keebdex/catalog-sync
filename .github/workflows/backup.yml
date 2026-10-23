@@ -24,6 +24,9 @@ jobs:
     env:
       CF_IMAGES_API_KEY: ${{ secrets.CF_IMAGES_API_KEY }}
       CF_IMAGES_ACCOUNT_ID: ${{ secrets.CF_IMAGES_ACCOUNT_ID }}
+      # User token with Images read access: the account token above can't
+      # download originals of images Cloudflare named (Keebdex app uploads)
+      CF_IMAGES_READ_TOKEN: ${{ secrets.CF_IMAGES_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v6
 

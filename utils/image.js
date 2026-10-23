@@ -93,13 +93,18 @@ async function getListImages() {
 }
 
 // The original file as uploaded, through the API rather than a delivery URL
-// (which would return a resized variant)
+// (which would return a resized variant). Account-owned tokens get a 403 here
+// for images Cloudflare named itself (Keebdex app uploads), so a user token
+// with Images read access can be passed as CF_IMAGES_READ_TOKEN.
 async function downloadOriginal(imageId) {
+    const token =
+        process.env.CF_IMAGES_READ_TOKEN || process.env.CF_IMAGES_API_KEY
+
     const config = {
         method: 'get',
         url: `https://api.cloudflare.com/client/v4/accounts/${process.env.CF_IMAGES_ACCOUNT_ID}/images/v1/${imageId}/blob`,
         headers: {
-            Authorization: `Bearer ${process.env.CF_IMAGES_API_KEY}`,
+            Authorization: `Bearer ${token}`,
         },
         responseType: 'arraybuffer',
     }

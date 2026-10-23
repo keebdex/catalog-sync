@@ -53,4 +53,4 @@ To restore, re-upload images to Cloudflare under their old ids (the key without 
 
 ## Environment variables
 
-`SUPABASE_URL`, `SUPABASE_KEY`, `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (JSON key written to `keebdex.json`), and for backups `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (a token scoped to the backup bucket), `R2_BUCKET`, and `SUPABASE_DB_URL` (session pooler connection string, CI only).
+`SUPABASE_URL`, `SUPABASE_KEY`, `CF_IMAGES_API_KEY`, `CF_IMAGES_ACCOUNT_ID`, `CF_IMAGES_ACCOUNT_HASH`, `GOOGLE_SERVICE_ACCOUNT` (JSON key written to `keebdex.json`), and for backups `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` (a token scoped to the backup bucket), `R2_BUCKET`, `CF_IMAGES_READ_TOKEN` (a user API token with Images read access; account tokens can't download originals of Keebdex app uploads), and `SUPABASE_DB_URL` (session pooler connection string, CI only).
