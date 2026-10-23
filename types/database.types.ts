@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.18"
   }
   public: {
     Tables: {
@@ -309,6 +309,7 @@ export type Database = {
           sculpt_id: string
           source: string
           source_document_id: string | null
+          source_slug: string | null
           story: string | null
           submitted_by: string | null
           verified_at: string | null
@@ -334,6 +335,7 @@ export type Database = {
           sculpt_id: string
           source: string
           source_document_id?: string | null
+          source_slug?: string | null
           story?: string | null
           submitted_by?: string | null
           verified_at?: string | null
@@ -359,6 +361,7 @@ export type Database = {
           sculpt_id?: string
           source?: string
           source_document_id?: string | null
+          source_slug?: string | null
           story?: string | null
           submitted_by?: string | null
           verified_at?: string | null
@@ -1108,6 +1111,7 @@ export type Database = {
           profile_keyset_id: string
           review_status: Database["public"]["Enums"]["review_status"] | null
           sculpt: string | null
+          slug: string
           start_date: string | null
           status: string | null
           submitted_by: string | null
@@ -1131,6 +1135,7 @@ export type Database = {
           profile_keyset_id: string
           review_status?: Database["public"]["Enums"]["review_status"] | null
           sculpt?: string | null
+          slug: string
           start_date?: string | null
           status?: string | null
           submitted_by?: string | null
@@ -1154,6 +1159,7 @@ export type Database = {
           profile_keyset_id?: string
           review_status?: Database["public"]["Enums"]["review_status"] | null
           sculpt?: string | null
+          slug?: string
           start_date?: string | null
           status?: string | null
           submitted_by?: string | null
