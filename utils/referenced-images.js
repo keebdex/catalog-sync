@@ -4,7 +4,7 @@ const { ARTISAN_COLORWAYS_TABLE, DELIVERY_BASE_URL } = require('.')
 // status count: a Pending submission's image must survive until it's decided.
 const IMAGE_COLUMNS = [
     [ARTISAN_COLORWAYS_TABLE, ['img']],
-    ['keysets', ['img']],
+    ['keysets', ['img', 'order_graph', 'order_history']],
     ['keyset_kits', ['img']],
     ['keyboard_variants', ['img_front', 'img_back']],
 ]

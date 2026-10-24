@@ -22,8 +22,12 @@ const isDryRun = process.argv.includes('--dry-run')
 // old upload is pruned once nothing references it.
 const urlHash = (url) => crc32(url).toString(16)
 
-const makeKeysetImageId = (k) =>
-    `keyset/${k.profile_keyset_id}/${urlHash(k.img)}`
+// The cover keeps the original scheme; order graphs and histories get their
+// own folder (`keyset/<profile_keyset_id>/order-graph/<hash>`)
+const makeKeysetImageId = (k, column = 'img') =>
+    column === 'img'
+        ? `keyset/${k.profile_keyset_id}/${urlHash(k.img)}`
+        : `keyset/${k.profile_keyset_id}/${column.replace('_', '-')}/${urlHash(k[column])}`
 const makeKeysetKitImageId = (k) =>
     `keyset/${k.profile_keyset_id}/kit/${k.id}/${k.kit_id || urlSlugify(k.name)}/${urlHash(k.img)}`
 const makeKeyboardImageId = (k, side) =>
@@ -34,10 +38,16 @@ const makeColorwayImageId = (c) =>
 
 const KEYBOARD_SIDES = ['front', 'back']
 
+// The cover, plus the order graph and order history shown on keyset pages
+const KEYSET_IMAGE_COLUMNS = ['img', 'order_graph', 'order_history']
+
 const isUnsynced = (url) => url && !url.includes(DELIVERY_BASE_URL)
 
 const unsyncedSides = (variant) =>
     KEYBOARD_SIDES.filter((side) => isUnsynced(variant[`img_${side}`]))
+
+const unsyncedKeysetColumns = (keyset) =>
+    KEYSET_IMAGE_COLUMNS.filter((column) => isUnsynced(keyset[column]))
 
 // Rows still in review keep their vendor/submitter URL: reviewers see the
 // original image, and rejected rows never leave an upload behind. They get
@@ -72,14 +82,14 @@ const getOfficialKeys = async (table, column) => {
     return new Set(rows.map((row) => row[column]))
 }
 
+// Columns without an image are skipped later, so a keyset with only an order
+// graph still syncs.
 const getKeysets = () =>
     fetchAll(() =>
         supabase
             .from('keysets')
-            .select('img, profile_keyset_id')
-            .or(OFFICIAL)
-            .not('img', 'is', null)
-            .neq('img', ''),
+            .select(`id, profile_keyset_id, ${KEYSET_IMAGE_COLUMNS.join(', ')}`)
+            .or(OFFICIAL),
     )
 
 // A kit counts as published only when its keyset is too (older scraped kits
@@ -161,26 +171,32 @@ const syncNewColorway = async (colorway) => {
 }
 
 const syncNewKeyset = async (keyset) => {
-    const filename = makeKeysetImageId(keyset)
+    for (const column of unsyncedKeysetColumns(keyset)) {
+        const filename = makeKeysetImageId(keyset, column)
 
-    const promise = supabase
-        .from('keysets')
-        .update({ img: `${DELIVERY_BASE_URL}/${filename}/public` })
-        .eq('profile_keyset_id', keyset.profile_keyset_id)
-
-    const { ok, status } = await uploadImage(filename, keyset.img, promise)
-
-    if (!ok && status === 404) {
-        const { error } = await supabase
+        const promise = supabase
             .from('keysets')
-            .update({ img: null })
+            .update({ [column]: `${DELIVERY_BASE_URL}/${filename}/public` })
             .eq('profile_keyset_id', keyset.profile_keyset_id)
 
-        if (error) {
-            console.error(
-                `Failed to remove image url for keyset ${keyset.profile_keyset_id}`,
-                error,
-            )
+        const { ok, status } = await uploadImage(
+            filename,
+            keyset[column],
+            promise,
+        )
+
+        if (!ok && status === 404) {
+            const { error } = await supabase
+                .from('keysets')
+                .update({ [column]: null })
+                .eq('profile_keyset_id', keyset.profile_keyset_id)
+
+            if (error) {
+                console.error(
+                    `Failed to remove ${column} url for keyset ${keyset.profile_keyset_id}`,
+                    error,
+                )
+            }
         }
     }
 }
@@ -234,8 +250,8 @@ Promise.all([
     getColorways(),
 ])
     .then(async ([keysets, kits, variants, colorways]) => {
-        const unsyncedKeysets = keysets.filter((keyset) =>
-            isUnsynced(keyset.img),
+        const unsyncedKeysets = keysets.filter(
+            (keyset) => unsyncedKeysetColumns(keyset).length,
         )
 
         const unsyncedKits = kits.filter((kit) => isUnsynced(kit.img))
@@ -256,7 +272,11 @@ Promise.all([
         if (isDryRun) {
             console.log(
                 '[DRY RUN] Would upload',
-                unsyncedKeysets.map(makeKeysetImageId),
+                unsyncedKeysets.flatMap((keyset) =>
+                    unsyncedKeysetColumns(keyset).map((column) =>
+                        makeKeysetImageId(keyset, column),
+                    ),
+                ),
                 unsyncedKits.map(makeKeysetKitImageId),
                 unsyncedVariants.flatMap((variant) =>
                     unsyncedSides(variant).map((side) =>
