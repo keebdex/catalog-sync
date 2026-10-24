@@ -13,6 +13,7 @@
     "vendor-scraper": "node keysets/vendor-scraper.js",
     "sync-images": "node jobs/sync-images.js",
     "prune-images": "node jobs/prune-images.js",
+    "restore-images": "node jobs/restore-images.js",
     "backup-images": "node jobs/backup-images.js",
     "prepare": "husky"
   },

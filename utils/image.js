@@ -20,10 +20,23 @@ async function downloadImage(url, filename) {
     )
 }
 
-async function uploadImage(filename, url, promise) {
+// Uploads an image under the id `filename`. `source` is a URL for Cloudflare
+// to fetch, or a file as { data, contentType } (e.g. an R2 backup restored
+// under its old id). `promise`, if any (e.g. the row update),
+// is awaited only after the upload succeeded.
+// Resolves to { ok } and never throws; failures are logged.
+async function uploadImage(filename, source, promise) {
     let data = new FormData()
 
-    data.append('url', url)
+    if (typeof source === 'string') {
+        data.append('url', source)
+    } else {
+        data.append('file', source.data, {
+            filename: filename.split('/').pop(),
+            contentType: source.contentType,
+        })
+    }
+
     data.append('id', filename)
 
     let config = {

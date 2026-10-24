@@ -3,6 +3,7 @@ require('dotenv').config()
 const Promise = require('bluebird')
 const { listImages, downloadOriginal } = require('../utils/image')
 const {
+    IMAGES_PREFIX: PREFIX,
     getLockRules,
     listObjects,
     moveObject,
@@ -19,10 +20,6 @@ const limit = limitIndex > -1 ? Number(process.argv[limitIndex + 1]) : Infinity
 // --force-trash moves backups to the trash past MAX_TRASH_RATIO, for a
 // deliberate mass deletion on Cloudflare
 const forceTrash = process.argv.includes('--force-trash')
-
-// Backups are keyed by Cloudflare image id, so a restore re-uploads each file
-// under its old id and every stored delivery URL works again
-const PREFIX = 'images/'
 
 // The backup of an image deleted from Cloudflare moves here; how long it stays
 // is up to the bucket's lock and lifecycle rules for this prefix

@@ -2,6 +2,7 @@ const {
     S3Client,
     CopyObjectCommand,
     DeleteObjectCommand,
+    GetObjectCommand,
     ListObjectsV2Command,
     PutObjectCommand,
 } = require('@aws-sdk/client-s3')
@@ -9,6 +10,11 @@ const { default: axios } = require('axios')
 
 const { R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } =
     process.env
+
+// Backups of Cloudflare images are keyed by image id (images/<id>), so
+// restore-images re-uploads each file under its old id and every stored
+// delivery URL works again
+const IMAGES_PREFIX = 'images/'
 
 let client
 
@@ -71,6 +77,24 @@ async function putObject(key, body, contentType, metadata) {
     )
 }
 
+// The object's bytes and type, or null when the key doesn't exist
+async function getObject(key) {
+    try {
+        const { Body, ContentType } = await getClient().send(
+            new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
+        )
+
+        return {
+            data: Buffer.from(await Body.transformToByteArray()),
+            contentType: ContentType,
+        }
+    } catch (error) {
+        if (error?.name === 'NoSuchKey') return null
+
+        throw error
+    }
+}
+
 // Copy, then delete: a failed delete leaves the object in both places rather
 // than in neither. Metadata is copied along.
 async function moveObject(from, to) {
@@ -105,4 +129,11 @@ async function getLockRules() {
     return data.result?.rules || []
 }
 
-module.exports = { getLockRules, listObjects, moveObject, putObject }
+module.exports = {
+    IMAGES_PREFIX,
+    getLockRules,
+    getObject,
+    listObjects,
+    moveObject,
+    putObject,
+}
