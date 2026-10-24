@@ -25,6 +25,7 @@ npm run maker-scraper    # scrape artisan maker websites
 npm run vendor-scraper   # scrape vendor keyset listings
 npm run sync-images      # sync images to Cloudflare Images
 npm run prune-images     # remove orphaned Cloudflare images
+npm run restore-images   # re-upload referenced images missing from Cloudflare, from R2
 npm run backup-images    # copy new Cloudflare images to the R2 backup bucket
 npm run lint / lint:fix  # eslint
 npm run format           # prettier
@@ -39,7 +40,7 @@ All run against production and can be started by hand from the Actions tab.
 | Workflow             | Schedule (UTC)                                                | Runs                                             |
 | -------------------- | ------------------------------------------------------------- | ------------------------------------------------ |
 | Keebdex Artisan Sync | daily 23:00, and on pushes to `main` that touch the sync code | `gdocs-importer`, then `maker-scraper`           |
-| Keebdex Image Sync   | daily 01:00                                                   | `sync-images`                                    |
+| Keebdex Image Sync   | daily 01:00                                                   | `sync-images`, then `restore-images`             |
 | Keebdex R2 Backup    | daily 02:00                                                   | `backup-images`, and a `pg_dump` of the database |
 | Keebdex Image Prune  | 1st and 15th, 00:00                                           | `prune-images`                                   |
 
