@@ -20,12 +20,54 @@ async function downloadImage(url, filename) {
     )
 }
 
+// Cloudflare Images cannot fetch from Cloudflare Images (another account's
+// imagedelivery.net or /cdn-cgi/imagedelivery/ URLs, error 5454), so those are
+// downloaded here and uploaded as a file
+const CLOUDFLARE_DELIVERY_URL =
+    /^https:\/\/(?:imagedelivery\.net|[^/]+\/cdn-cgi\/imagedelivery)\//
+
+// Cloudflare's error when it could not fetch the source URL
+const FETCH_ERROR_CODE = 5454
+
+// A source URL as { data, contentType }; resolves to { status } instead when
+// the download fails
+async function fetchSource(url) {
+    return axios
+        .get(url, { responseType: 'arraybuffer' })
+        .then(({ data, headers }) => ({
+            data,
+            contentType: headers['content-type'],
+        }))
+        .catch(({ response, message }) => {
+            console.error(
+                'unable to download image',
+                url,
+                response?.status,
+                message,
+            )
+
+            return { status: response?.status, message }
+        })
+}
+
 // Uploads an image under the id `filename`. `source` is a URL for Cloudflare
 // to fetch, or a file as { data, contentType } (e.g. an R2 backup restored
-// under its old id). `promise`, if any (e.g. the row update),
-// is awaited only after the upload succeeded.
+// under its old id). URLs Cloudflare cannot fetch (Cloudflare Images of other
+// accounts, sites that block its fetcher) are downloaded and sent as a file.
+// `promise`, if any (e.g. the row update), is awaited only after the upload
+// succeeded.
 // Resolves to { ok } and never throws; failures are logged.
 async function uploadImage(filename, source, promise) {
+    if (typeof source === 'string' && CLOUDFLARE_DELIVERY_URL.test(source)) {
+        const file = await fetchSource(source)
+
+        if (!file.data) {
+            return { ok: false, status: file.status, message: file.message }
+        }
+
+        return uploadImage(filename, file, promise)
+    }
+
     let data = new FormData()
 
     if (typeof source === 'string') {
@@ -57,8 +99,24 @@ async function uploadImage(filename, source, promise) {
 
             return { ok: true }
         })
-        .catch(({ response, message }) => {
+        .catch(async ({ response, message }) => {
             const { data, status } = response || {}
+
+            const fetchFailed =
+                typeof source === 'string' &&
+                status !== 404 &&
+                data?.errors?.some(({ code }) => code === FETCH_ERROR_CODE)
+
+            // Cloudflare could not fetch the URL; try downloading it here
+            if (fetchFailed) {
+                const file = await fetchSource(source)
+
+                if (file.data) {
+                    return uploadImage(filename, file, promise)
+                }
+
+                return { ok: false, status: file.status, message: file.message }
+            }
 
             console.error(
                 'unable to upload image',
