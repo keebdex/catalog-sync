@@ -11,14 +11,14 @@ const supabase = createSupabase('maintenance')
 const getActiveDocIds = () =>
     supabase
         .from(ARTISAN_MAKERS_TABLE)
-        .select('id, document_ids')
+        .select('maker_id, document_ids')
         .neq('deleted', true)
         .then(({ data }) => data.filter((r) => Array.isArray(r.document_ids)))
         .then((makers) => {
             return flattenDeep(
                 makers.map((m) =>
                     m.document_ids.map((doc_id) => ({
-                        maker_id: m.id,
+                        maker_id: m.maker_id,
                         doc_id,
                     })),
                 ),
