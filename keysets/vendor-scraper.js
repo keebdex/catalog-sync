@@ -75,10 +75,12 @@ const syncKeysets = async () => {
     console.log(`\n📊 Total unique keysets: ${allKeysets.size}`)
 
     // keysets.profile_id references keyset_profiles, so a mapped profile that
-    // Keebdex doesn't have yet would fail the insert
+    // Keebdex doesn't have yet would fail the insert. Profiles proposed by
+    // users count only once a moderator approves them.
     const { data: profiles, error: profilesError } = await supabase
         .from('keyset_profiles')
         .select('profile_id')
+        .or('review_status.is.null,review_status.eq.Approved')
     if (profilesError) {
         console.error(
             '‼️ Failed to load keyset profiles:',
