@@ -617,7 +617,7 @@ const updateMetadata = async (id, data) => {
     const { error } = await supabase
         .from(ARTISAN_MAKERS_TABLE)
         .update(data)
-        .eq('id', id)
+        .eq('maker_id', id)
 
     if (error) {
         console.warn('update maker error', id, error)

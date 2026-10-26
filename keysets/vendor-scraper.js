@@ -78,7 +78,7 @@ const syncKeysets = async () => {
     // Keebdex doesn't have yet would fail the insert
     const { data: profiles, error: profilesError } = await supabase
         .from('keyset_profiles')
-        .select('id')
+        .select('profile_id')
     if (profilesError) {
         console.error(
             '‼️ Failed to load keyset profiles:',
@@ -87,7 +87,7 @@ const syncKeysets = async () => {
 
         return
     }
-    const profileIds = new Set(profiles.map((p) => p.id))
+    const profileIds = new Set(profiles.map((p) => p.profile_id))
 
     // Insert into Supabase
     for (const { keyset, kits } of allKeysets.values()) {

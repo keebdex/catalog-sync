@@ -16,7 +16,7 @@ The Keebdex app lives in the sibling repository `../keebdex`. Its `AGENTS.md` de
 - `artisans/utils/docs.js`: Google Drive/Docs helpers (`downloadDoc`, `getFile`, `getRevisions`). `downloadDoc` returns a native Promise and rejects with `code: 404` when a doc was deleted.
 - `artisans/utils/parser.js`: turns the raw Google Docs API response into sculpt/colorway objects.
 - `keysets/vendor-scraper.js` + `keysets/adapters/*.js`: vendor keyset scraper. Each adapter exports `{ name, fetchKeysets }` returning `{ keyset, kits }[]`; adapters earlier in `priorityMap` win when two return the same `profile_keyset_id`.
-- `keysets/utils/index.js`: `getProfileInfo` (vendor title → Keebdex `keyset_profiles.id` and cleaned keyset name) and `removeHtmlTags`.
+- `keysets/utils/index.js`: `getProfileInfo` (vendor title → Keebdex `keyset_profiles.profile_id` and cleaned keyset name) and `removeHtmlTags`.
 - `jobs/`: maintenance scripts. `sync-images.js` / `prune-images.js` / `restore-images.js` (scheduled, all support `--dry-run`; see "Cloudflare Images"), `backup-images.js` (scheduled, `--dry-run`; see "Backups"), and `sync-catalogue-metadata.js`, which has no `--dry-run` and writes to production when run.
 - `utils/index.js`: `createSupabase(source)` (see "Revision sources"), shared table names (`ARTISAN_MAKERS_TABLE`, …), `urlSlugify`, `DELIVERY_BASE_URL`, `PARTIAL_MAKERS`. Import table names from here instead of hardcoding strings.
 - `utils/image.js`: Cloudflare Images helpers.
@@ -50,7 +50,7 @@ Keebdex tables that accept community submissions carry `review_status` (`Pending
 - **Artisans** (gdoc and scraper rows) are trusted maker data: sculpts and colorways are inserted with `review_status` null and published directly. Sync updates only patch allow-listed fields and never touch moderation columns.
 - **Keysets** from vendor sites need review: `vendor-scraper.js` inserts the keyset and every kit as `Pending` (`PENDING_REVIEW`: no submitter, no verifier). Kits must carry their own status, because the Keebdex keyset queue lists kits grouped by keyset; a Pending keyset with status-less kits never appears there. Approving a kit approves its keyset. Keysets without kits are skipped, and a keyset whose kit insert fails is deleted again, so no orphan Pending keyset is left.
 - Existing keysets (any status, including Rejected) are skipped, so a rejected keyset is not re-added. Only keysets whose `profile_id` exists in `keyset_profiles` are inserted.
-- `getProfileInfo` matches vendor prefixes as whole words, longest first (`GMK MTNU` → `mtnu` before `GMK` → `gmk`), and strips the prefix from the name. Map prefixes to real `keyset_profiles.id` values.
+- `getProfileInfo` matches vendor prefixes as whole words, longest first (`GMK MTNU` → `mtnu` before `GMK` → `gmk`), and strips the prefix from the name. Map prefixes to real `keyset_profiles.profile_id` values.
 - `submitted_by` stays null for synced rows, so Keebdex sends no notifications about them (`push_notification` skips a null recipient).
 
 ## Artisan data ownership (don't break this)

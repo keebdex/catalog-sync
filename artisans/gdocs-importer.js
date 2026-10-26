@@ -48,9 +48,9 @@ function customMerge(key) {
 }
 
 async function scan(maker) {
-    console.log('start downloading:', maker.id)
+    console.log('start downloading:', maker.maker_id)
 
-    const { id, document_ids } = maker
+    const { maker_id: id, document_ids } = maker
     let contributors = maker.contributors || []
 
     try {

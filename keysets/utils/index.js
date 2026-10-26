@@ -7,7 +7,7 @@ const removeHtmlTags = (str) => {
     }
 }
 
-// Vendor title prefix → Keebdex keyset_profiles.id. MTNU sets are sold as
+// Vendor title prefix → Keebdex keyset_profiles.profile_id. MTNU sets are sold as
 // "GMK MTNU", so that prefix must win over plain "GMK".
 const profileIdMapping = {
     'GMK CYL': 'gmk',
