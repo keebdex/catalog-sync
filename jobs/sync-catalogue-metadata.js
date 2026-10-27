@@ -12,6 +12,7 @@ const getActiveDocIds = () =>
     supabase
         .from(ARTISAN_MAKERS_TABLE)
         .select('maker_id, document_ids')
+        .or('review_status.is.null,review_status.eq.Approved')
         .neq('deleted', true)
         .then(({ data }) => data.filter((r) => Array.isArray(r.document_ids)))
         .then((makers) => {

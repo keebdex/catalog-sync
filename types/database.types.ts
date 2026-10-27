@@ -245,8 +245,12 @@ export type Database = {
           invertible_logo: boolean | null
           maker_id: string
           name: string
+          review_status: Database["public"]["Enums"]["review_status"] | null
+          submitted_by: string | null
           updated_at: string | null
           verified: boolean
+          verified_at: string | null
+          verified_by: string | null
           website: string | null
         }
         Insert: {
@@ -265,8 +269,12 @@ export type Database = {
           invertible_logo?: boolean | null
           maker_id: string
           name: string
+          review_status?: Database["public"]["Enums"]["review_status"] | null
+          submitted_by?: string | null
           updated_at?: string | null
           verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
           website?: string | null
         }
         Update: {
@@ -285,11 +293,30 @@ export type Database = {
           invertible_logo?: boolean | null
           maker_id?: string
           name?: string
+          review_status?: Database["public"]["Enums"]["review_status"] | null
+          submitted_by?: string | null
           updated_at?: string | null
           verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "artisan_makers_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "artisan_makers_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       artisan_sculpts: {
         Row: {
@@ -568,7 +595,11 @@ export type Database = {
           instagram: string | null
           invertible_logo: boolean
           name: string
+          review_status: Database["public"]["Enums"]["review_status"] | null
           slug: string
+          submitted_by: string | null
+          verified_at: string | null
+          verified_by: string | null
           website: string | null
         }
         Insert: {
@@ -581,7 +612,11 @@ export type Database = {
           instagram?: string | null
           invertible_logo?: boolean
           name: string
+          review_status?: Database["public"]["Enums"]["review_status"] | null
           slug: string
+          submitted_by?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
           website?: string | null
         }
         Update: {
@@ -594,10 +629,29 @@ export type Database = {
           instagram?: string | null
           invertible_logo?: boolean
           name?: string
+          review_status?: Database["public"]["Enums"]["review_status"] | null
           slug?: string
+          submitted_by?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "keyboard_brands_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyboard_brands_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       keyboard_releases: {
         Row: {
@@ -1076,6 +1130,10 @@ export type Database = {
           name: string
           profile: Database["public"]["Enums"]["keyset_profile"] | null
           profile_id: string
+          review_status: Database["public"]["Enums"]["review_status"] | null
+          submitted_by: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           description?: string | null
@@ -1085,6 +1143,10 @@ export type Database = {
           name: string
           profile?: Database["public"]["Enums"]["keyset_profile"] | null
           profile_id: string
+          review_status?: Database["public"]["Enums"]["review_status"] | null
+          submitted_by?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           description?: string | null
@@ -1094,8 +1156,27 @@ export type Database = {
           name?: string
           profile?: Database["public"]["Enums"]["keyset_profile"] | null
           profile_id?: string
+          review_status?: Database["public"]["Enums"]["review_status"] | null
+          submitted_by?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "keyset_profiles_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "keyset_profiles_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       keysets: {
         Row: {
@@ -1616,13 +1697,25 @@ export type Database = {
         Args: { p_entity_type: string }
         Returns: string
       }
+      edit_suggestion_virtual_field: {
+        Args: { p_entity_type: string; p_key: string }
+        Returns: boolean
+      }
       is_admin: { Args: never; Returns: boolean }
       is_official_review_status: {
         Args: { s: Database["public"]["Enums"]["review_status"] }
         Returns: boolean
       }
+      keyset_color_ids: {
+        Args: { p_profile_keyset_id: string }
+        Returns: number[]
+      }
       mark_all_notifications_read: { Args: never; Returns: number }
       merge_dismissals: { Args: { p_keys: string[] }; Returns: number }
+      parse_colors_change: {
+        Args: { p_current: number[]; p_value: Json }
+        Returns: Json
+      }
       push_notification: {
         Args: {
           p_actor_id: string
@@ -1649,6 +1742,7 @@ export type Database = {
           name: string
         }[]
       }
+      revision_source: { Args: never; Returns: Record<string, unknown> }
       submission_details: {
         Args: { p_row: Json; p_table: string }
         Returns: Json

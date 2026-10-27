@@ -77,6 +77,8 @@ const getGDocMakers = () =>
     supabase
         .from(ARTISAN_MAKERS_TABLE)
         .select()
+        // makers proposed by users stay out until a moderator approves them
+        .or('review_status.is.null,review_status.eq.Approved')
         .neq('deleted', true)
         .neq('disable_google_sync', true)
         .then(({ data }) => data.filter((r) => Array.isArray(r.document_ids)))
