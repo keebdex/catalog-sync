@@ -1603,6 +1603,7 @@ export type Database = {
           favorite_makers: Json
           full_name: string | null
           id: string
+          leaderboard_hidden: boolean
           qq: string | null
           reddit: string | null
           role: string | null
@@ -1615,6 +1616,7 @@ export type Database = {
           favorite_makers?: Json
           full_name?: string | null
           id: string
+          leaderboard_hidden?: boolean
           qq?: string | null
           reddit?: string | null
           role?: string | null
@@ -1627,6 +1629,7 @@ export type Database = {
           favorite_makers?: Json
           full_name?: string | null
           id?: string
+          leaderboard_hidden?: boolean
           qq?: string | null
           reddit?: string | null
           role?: string | null
@@ -1710,6 +1713,36 @@ export type Database = {
         Args: { p_profile_keyset_id: string }
         Returns: number[]
       }
+      leaderboard: {
+        Args: { p_domain?: string; p_limit?: number; p_period: string }
+        Returns: Database["public"]["CompositeTypes"]["leaderboard_entry"][]
+        SetofOptions: {
+          from: "*"
+          to: "leaderboard_entry"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      leaderboard_me: {
+        Args: { p_domain?: string; p_period: string }
+        Returns: Database["public"]["CompositeTypes"]["leaderboard_entry"][]
+        SetofOptions: {
+          from: "*"
+          to: "leaderboard_entry"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      leaderboard_totals: {
+        Args: { p_domain: string; p_include: string; p_period: string }
+        Returns: Database["public"]["CompositeTypes"]["leaderboard_entry"][]
+        SetofOptions: {
+          from: "*"
+          to: "leaderboard_entry"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       mark_all_notifications_read: { Args: never; Returns: number }
       merge_dismissals: { Args: { p_keys: string[] }; Returns: number }
       parse_colors_change: {
@@ -1748,6 +1781,13 @@ export type Database = {
         Returns: Json
       }
       unread_count: { Args: never; Returns: number }
+      user_display: {
+        Args: { p_id: string }
+        Returns: {
+          avatar: string
+          name: string
+        }[]
+      }
     }
     Enums: {
       currency:
@@ -1847,7 +1887,16 @@ export type Database = {
       user_role: "admin" | "editor" | "maker" | "designer" | "donator"
     }
     CompositeTypes: {
-      [_ in never]: never
+      leaderboard_entry: {
+        rank: number | null
+        user_id: string | null
+        name: string | null
+        avatar: string | null
+        points: number | null
+        pages: number | null
+        items: number | null
+        suggestions: number | null
+      }
     }
   }
 }
