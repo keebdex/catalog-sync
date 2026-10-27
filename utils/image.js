@@ -1,24 +1,5 @@
 const { default: axios } = require('axios')
-const fs = require('fs')
 const FormData = require('form-data')
-
-async function downloadImage(url, filename) {
-    const response = await axios.get(url, { responseType: 'arraybuffer' })
-
-    const [, ext] = response.headers['content-type'].split('/')
-
-    fs.writeFile(
-        `images/${filename}.${ext.toLowerCase()}`,
-        response.data,
-        (err) => {
-            if (err) {
-                console.error('unable to download image', filename, err)
-            }
-
-            // console.log('image downloaded successfully', filename)
-        },
-    )
-}
 
 // Cloudflare Images cannot fetch from Cloudflare Images (another account's
 // imagedelivery.net or /cdn-cgi/imagedelivery/ URLs, error 5454), so those are
@@ -26,14 +7,27 @@ async function downloadImage(url, filename) {
 const CLOUDFLARE_DELIVERY_URL =
     /^https:\/\/(?:imagedelivery\.net|[^/]+\/cdn-cgi\/imagedelivery)\//
 
-// Cloudflare's error when it could not fetch the source URL
+// Cloudflare's error when it could not fetch the source URL (it answers 424
+// for some fetch failures, with a code shared with other errors)
 const FETCH_ERROR_CODE = 5454
+const FETCH_ERROR_STATUS = 424
+
+// Cloudflare's error for an image over its size limits, and those limits
+const TOO_LARGE_CODE = 5443
+const MAX_DIMENSION = 12000
+const MAX_AREA = 100000000
+
+// Some hosts (e.g. imgur) answer axios's default user agent with a 429
+const USER_AGENT = 'keebdex-catalog-sync (+https://keebdex.org)'
 
 // A source URL as { data, contentType }; resolves to { status } instead when
 // the download fails
 async function fetchSource(url) {
     return axios
-        .get(url, { responseType: 'arraybuffer' })
+        .get(url, {
+            responseType: 'arraybuffer',
+            headers: { 'User-Agent': USER_AGENT },
+        })
         .then(({ data, headers }) => ({
             data,
             contentType: headers['content-type'],
@@ -50,22 +44,58 @@ async function fetchSource(url) {
         })
 }
 
+// Formats kept when downscaling; anything else becomes a JPEG
+const RESIZE_FORMATS = new Set(['jpeg', 'png', 'webp'])
+
+// A file within Cloudflare's dimension and area limits: the file itself, or a
+// downscaled copy. sharp is loaded only when needed, since most scripts that
+// import this module never upload a file.
+async function fitImage(file) {
+    const sharp = require('sharp')
+    const image = sharp(file.data)
+    const { width, height, format } = await image.metadata()
+    const scale = Math.min(
+        MAX_DIMENSION / Math.max(width, height),
+        Math.sqrt(MAX_AREA / (width * height)),
+    )
+
+    if (scale >= 1) {
+        return file
+    }
+
+    const output = RESIZE_FORMATS.has(format) ? format : 'jpeg'
+
+    return {
+        data: await image
+            .resize(Math.floor(width * scale))
+            .toFormat(output, { quality: 90 })
+            .toBuffer(),
+        contentType: `image/${output}`,
+    }
+}
+
+// Downloads a URL and uploads it as a file
+async function uploadDownloaded(filename, url, promise) {
+    const file = await fetchSource(url)
+
+    if (!file.data) {
+        return { ok: false, status: file.status, message: file.message }
+    }
+
+    return uploadImage(filename, file, promise)
+}
+
 // Uploads an image under the id `filename`. `source` is a URL for Cloudflare
 // to fetch, or a file as { data, contentType } (e.g. an R2 backup restored
 // under its old id). URLs Cloudflare cannot fetch (Cloudflare Images of other
-// accounts, sites that block its fetcher) are downloaded and sent as a file.
+// accounts, sites that block its fetcher) and URLs of images over its size
+// limits are downloaded and sent as a file, downscaled to fit if needed.
 // `promise`, if any (e.g. the row update), is awaited only after the upload
 // succeeded.
 // Resolves to { ok } and never throws; failures are logged.
 async function uploadImage(filename, source, promise) {
     if (typeof source === 'string' && CLOUDFLARE_DELIVERY_URL.test(source)) {
-        const file = await fetchSource(source)
-
-        if (!file.data) {
-            return { ok: false, status: file.status, message: file.message }
-        }
-
-        return uploadImage(filename, file, promise)
+        return uploadDownloaded(filename, source, promise)
     }
 
     let data = new FormData()
@@ -73,9 +103,13 @@ async function uploadImage(filename, source, promise) {
     if (typeof source === 'string') {
         data.append('url', source)
     } else {
-        data.append('file', source.data, {
+        // Not an image sharp can read (e.g. an HTML page): upload it as is and
+        // let Cloudflare reject it
+        const file = await fitImage(source).catch(() => source)
+
+        data.append('file', file.data, {
             filename: filename.split('/').pop(),
-            contentType: source.contentType,
+            contentType: file.contentType,
         })
     }
 
@@ -101,21 +135,20 @@ async function uploadImage(filename, source, promise) {
         })
         .catch(async ({ response, message }) => {
             const { data, status } = response || {}
+            const hasError = (errorCode) =>
+                data?.errors?.some(({ code }) => code === errorCode)
 
-            const fetchFailed =
+            // Cloudflare could not fetch the URL, or the image is too large to
+            // store; download it here and upload it as a file
+            const retryAsFile =
                 typeof source === 'string' &&
                 status !== 404 &&
-                data?.errors?.some(({ code }) => code === FETCH_ERROR_CODE)
+                (status === FETCH_ERROR_STATUS ||
+                    hasError(FETCH_ERROR_CODE) ||
+                    hasError(TOO_LARGE_CODE))
 
-            // Cloudflare could not fetch the URL; try downloading it here
-            if (fetchFailed) {
-                const file = await fetchSource(source)
-
-                if (file.data) {
-                    return uploadImage(filename, file, promise)
-                }
-
-                return { ok: false, status: file.status, message: file.message }
+            if (retryAsFile) {
+                return uploadDownloaded(filename, source, promise)
             }
 
             console.error(
@@ -200,7 +233,6 @@ async function deleteImage(imageId) {
 }
 
 module.exports = {
-    downloadImage,
     uploadImage,
     listImages,
     getListImages,
