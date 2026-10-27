@@ -52,17 +52,6 @@ function normalizeKitName(rawName = '') {
     return kitName
 }
 
-function mapStatus(tags = []) {
-    const lowerTags = tags.map((t) => t.toLowerCase())
-
-    if (lowerTags.some((t) => t.includes('coming soon'))) return 'Scheduled'
-    if (lowerTags.some((t) => t.includes('live gb'))) return 'Live'
-    if (lowerTags.some((t) => t.includes('pre-order'))) return 'In Production'
-    if (lowerTags.some((t) => t.includes('in stock'))) return 'Complete'
-
-    return null
-}
-
 async function fetchKeysets() {
     const url = 'https://prototypist.net/products.json'
     const response = await axios.get(url)
@@ -113,7 +102,6 @@ async function fetchKeysets() {
                     profile_id: profileId,
                     url: `https://prototypist.net/products/${p.handle}`,
                     // description: description.replace(/\s+/g, ' '),
-                    status: mapStatus(p.tags),
                     // render_img: p.images[0]?.src ?? null,
                     img: p.images[0]?.src ?? null,
                     ...groupBuy,

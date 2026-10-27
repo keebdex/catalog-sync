@@ -1197,7 +1197,7 @@ export type Database = {
           sculpt: string | null
           slug: string
           start_date: string | null
-          status: string | null
+          status: Database["public"]["Enums"]["keyset_status"]
           submitted_by: string | null
           url: string | null
           verified_at: string | null
@@ -1221,7 +1221,7 @@ export type Database = {
           sculpt?: string | null
           slug: string
           start_date?: string | null
-          status?: string | null
+          status?: Database["public"]["Enums"]["keyset_status"]
           submitted_by?: string | null
           url?: string | null
           verified_at?: string | null
@@ -1245,7 +1245,7 @@ export type Database = {
           sculpt?: string | null
           slug?: string
           start_date?: string | null
-          status?: string | null
+          status?: Database["public"]["Enums"]["keyset_status"]
           submitted_by?: string | null
           url?: string | null
           verified_at?: string | null
@@ -1866,14 +1866,7 @@ export type Database = {
         | "XDA"
         | "KAM"
       keyset_profile_group: "Cherry" | "SA"
-      keyset_status:
-        | "Interest Check"
-        | "Scheduled"
-        | "Live"
-        | "In Production"
-        | "Shipping"
-        | "Complete"
-        | "Cancelled"
+      keyset_status: "Interest Check" | "Confirmed" | "Cancelled"
       module: "Artisan" | "Keyset" | "Keyboard"
       review_status: "Pending" | "Approved" | "Rejected"
       sale_format:
@@ -2104,15 +2097,7 @@ export const Constants = {
         "KAM",
       ],
       keyset_profile_group: ["Cherry", "SA"],
-      keyset_status: [
-        "Interest Check",
-        "Scheduled",
-        "Live",
-        "In Production",
-        "Shipping",
-        "Complete",
-        "Cancelled",
-      ],
+      keyset_status: ["Interest Check", "Confirmed", "Cancelled"],
       module: ["Artisan", "Keyset", "Keyboard"],
       review_status: ["Pending", "Approved", "Rejected"],
       sale_format: [
