@@ -20,6 +20,23 @@ const MAX_AREA = 100000000
 // Some hosts (e.g. imgur) answer axios's default user agent with a 429
 const USER_AGENT = 'keebdex-catalog-sync (+https://keebdex.org)'
 
+// imgur answers a deleted image with a redirect to a placeholder image, which
+// Cloudflare would store as if it were the real one
+const IMGUR_URL = /^https?:\/\/(?:i\.)?imgur\.com\//
+const IMGUR_REMOVED_URL = 'https://i.imgur.com/removed.png'
+
+async function isRemovedImgur(url) {
+    if (!IMGUR_URL.test(url)) {
+        return false
+    }
+
+    // A failed check falls back to a normal upload
+    return axios
+        .head(url, { headers: { 'User-Agent': USER_AGENT } })
+        .then(({ request }) => request.res.responseUrl === IMGUR_REMOVED_URL)
+        .catch(() => false)
+}
+
 // A source URL as { data, contentType }; resolves to { status } instead when
 // the download fails
 async function fetchSource(url) {
@@ -89,11 +106,19 @@ async function uploadDownloaded(filename, url, promise) {
 // to fetch, or a file as { data, contentType } (e.g. an R2 backup restored
 // under its old id). URLs Cloudflare cannot fetch (Cloudflare Images of other
 // accounts, sites that block its fetcher) and URLs of images over its size
-// limits are downloaded and sent as a file, downscaled to fit if needed.
+// limits are downloaded and sent as a file, downscaled to fit if needed. A
+// deleted imgur image resolves to { ok: false, status: 404 }, like a missing
+// source.
 // `promise`, if any (e.g. the row update), is awaited only after the upload
 // succeeded.
 // Resolves to { ok } and never throws; failures are logged.
 async function uploadImage(filename, source, promise) {
+    if (typeof source === 'string' && (await isRemovedImgur(source))) {
+        console.error('source image was deleted', filename, source)
+
+        return { ok: false, status: 404, message: 'deleted on imgur' }
+    }
+
     if (typeof source === 'string' && CLOUDFLARE_DELIVERY_URL.test(source)) {
         return uploadDownloaded(filename, source, promise)
     }
